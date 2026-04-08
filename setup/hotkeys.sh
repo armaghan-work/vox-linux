@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # setup/hotkeys.sh — Register keyboard shortcuts for vox-linux
 #
-# Usage: hotkeys.sh INSTALL_DIR [HOTKEY_TYPE=Super+V] [HOTKEY_CHAT=Super+C]
+# Usage: hotkeys.sh INSTALL_DIR [HOTKEY_TYPE=Ctrl+Alt+V] [HOTKEY_SUGGEST=Ctrl+Alt+S]
 #
 # Supports GNOME and KDE Plasma.  Falls back to printing manual instructions.
 
@@ -13,8 +13,8 @@ ok()   { echo -e "${GREEN}✓ $*${NC}"; }
 warn() { echo -e "${YELLOW}⚠ $*${NC}"; }
 
 INSTALL_DIR="${1:?Usage: hotkeys.sh INSTALL_DIR}"
-HOTKEY_TYPE="${2:-<Super>v}"
-HOTKEY_SUGGEST="${3:-<Super>s}"
+HOTKEY_TYPE="${2:-<Primary><Alt>v}"
+HOTKEY_SUGGEST="${3:-<Primary><Alt>s}"
 VOX_CMD="$INSTALL_DIR/vox.sh"
 
 # ── GNOME ─────────────────────────────────────────────────────────────────────

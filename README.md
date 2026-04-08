@@ -10,13 +10,13 @@
 
 | Hotkey | Mode | What it does |
 |--------|------|-------------|
-| `Super + V` | **Type anywhere** | Speak → transcribed text appears at your cursor in any app |
-| `Super + S` | **AI suggest** | Speak → runs your configured AI CLI command in the terminal |
+| `Ctrl + Alt + V` | **Type anywhere** | Speak → transcribed text appears at your cursor in any app |
+| `Ctrl + Alt + S` | **AI suggest** | Speak → runs your configured AI CLI command in the terminal |
 
 ### How suggest mode works
 
 ```
-Press Super+S  →  say "list all docker containers"  →  press Super+S again
+Press Ctrl+Alt+S  →  say "list all docker containers"  →  press Ctrl+Alt+S again
 
 terminal runs:  gh copilot suggest "list all docker containers"
              (or gemini / claude / llm — whatever you configure)
@@ -40,7 +40,7 @@ Speech-to-text runs **fully locally** via [whisper.cpp](https://github.com/ggerg
 ```bash
 git clone https://github.com/armaghan-work/vox-linux.git
 cd vox-linux
-./install.sh
+./install.sh          # run as your normal user, NOT with sudo
 ```
 
 The installer will:
@@ -49,7 +49,7 @@ The installer will:
 2. Clone and build **whisper.cpp** (~2–5 min, one time only)
 3. Download the **base.en** model (~148 MB)
 4. Create your config at `~/.config/vox-linux/config.cfg`
-5. Register `Super+V` and `Super+S` shortcuts in GNOME or KDE
+5. Register `Ctrl+Alt+V` and `Ctrl+Alt+S` shortcuts in GNOME or KDE
 
 > ⚠️ **Wayland users:** Log out and back in once after install (required to activate the `input` group for `ydotool`).
 
@@ -64,19 +64,19 @@ The installer will:
 
 ## Usage
 
-### `Super + V` — Type anywhere
+### `Ctrl + Alt + V` — Type anywhere
 1. Click where you want to type (browser, email, code editor, terminal…)
-2. Press `Super + V` → notification: *🎤 Recording…*
+2. Press `Ctrl + Alt + V` → notification: *🎤 Recording…*
 3. Speak
-4. Press `Super + V` again → text appears at your cursor
+4. Press `Ctrl + Alt + V` again → text appears at your cursor
 
-> Works in every app. For Copilot CLI chat: use `Super+V`, then press Enter yourself.
+> Works in every app. For Copilot CLI chat: use `Ctrl+Alt+V`, then press Enter yourself.
 
-### `Super + S` — AI suggest
+### `Ctrl + Alt + S` — AI suggest
 1. Open a terminal with your preferred AI CLI ready
-2. Press `Super + S` → notification: *🎤 Recording…*
+2. Press `Ctrl + Alt + S` → notification: *🎤 Recording…*
 3. Say what you want, e.g. **"show me disk usage by folder"**
-4. Press `Super + S` again → your terminal automatically runs:
+4. Press `Ctrl + Alt + S` again → your terminal automatically runs:
    ```
    gh copilot suggest "show me disk usage by folder"
    ```
@@ -98,7 +98,7 @@ VOX_WHISPER_MODEL="base.en"
 VOX_LANGUAGE="en"
 
 # ── AI suggest command ────────────────────────────────────────────────────────
-# The CLI used by Super+S. Your speech is appended as a quoted argument.
+# The CLI used by Ctrl+Alt+S. Your speech is appended as a quoted argument.
 VOX_SUGGEST_CMD="gh copilot suggest"
 
 # ── Display server (usually leave as auto) ────────────────────────────────────
@@ -127,7 +127,7 @@ The speech becomes the argument: `VOX_SUGGEST_CMD "your words"` — so it works 
 ## Changing hotkeys
 
 ```bash
-./setup/hotkeys.sh "$(pwd)" "<Super>v" "<Super>s"
+./setup/hotkeys.sh "$(pwd)" "<Primary><Alt>v" "<Primary><Alt>s"
 ```
 
 Or manually in:
@@ -153,7 +153,7 @@ Or manually in:
 - Try a larger model: set `VOX_WHISPER_MODEL="small.en"` in your config
 
 ### Suggest mode not working
-- Make sure your terminal is focused when you press `Super+S`
+- Make sure your terminal is focused when you press `Ctrl+Alt+S`
 - Test your AI CLI works manually first: run `gh copilot suggest "test"` (or your configured CLI)
 - For GitHub Copilot: `gh extension install github/gh-copilot`
 
