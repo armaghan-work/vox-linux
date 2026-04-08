@@ -61,6 +61,13 @@ _cmd_start() {
 }
 
 _cmd_stop() {
+    # Capture the active window NOW, before transcription takes focus away.
+    # type_text uses this (via VOX_FOCUSED_WINDOW) to re-focus before pasting.
+    VOX_FOCUSED_WINDOW=""
+    if command -v xdotool >/dev/null 2>&1; then
+        VOX_FOCUSED_WINDOW=$(xdotool getactivewindow 2>/dev/null || true)
+    fi
+
     notify_processing
     audio_stop "$PIDFILE"
     rm -f "$LOCKFILE"
@@ -84,7 +91,7 @@ _cmd_stop() {
         exit 0
     fi
 
-    notify_done "$text"
+    # type_text handles notify_done / notify_error internally
     type_text "$text" "$mode"
 }
 

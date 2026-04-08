@@ -35,10 +35,15 @@ detect_typing_tool() {
         return 0
     fi
     if [[ "$VOX_DISPLAY_SERVER" == "wayland" ]]; then
-        if command -v ydotool >/dev/null 2>&1; then
+        local sock="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
+        if command -v ydotool >/dev/null 2>&1 && [[ -S "$sock" ]]; then
+            # ydotool is available and its daemon socket exists
             VOX_TYPING_TOOL="ydotool"
         elif command -v wtype >/dev/null 2>&1; then
             VOX_TYPING_TOOL="wtype"
+        elif command -v xdotool >/dev/null 2>&1; then
+            # XWayland fallback — works for any app running under XWayland
+            VOX_TYPING_TOOL="xdotool"
         else
             VOX_TYPING_TOOL="clipboard_only"
         fi

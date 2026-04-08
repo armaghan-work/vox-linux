@@ -2,10 +2,12 @@
 # lib/type.sh — Text injection (clipboard paste method)
 #
 # Strategy:
-#  1. Save current clipboard
-#  2. Copy transcribed text to clipboard
-#  3. Simulate Ctrl+V (regular apps) or Ctrl+Shift+V (terminals)
-#  5. Restore clipboard in background after 3 s
+#  1. For suggest mode: ensure a terminal is focused (open one if needed)
+#  2. Restore focus to the window active when recording stopped
+#  3. Copy transcribed text to clipboard
+#  4. Simulate Ctrl+V (regular apps) or Ctrl+Shift+V (terminals)
+#  5. Notify success; on any failure fall back gracefully with an error notification
+#  6. Restore clipboard in background after 3 s
 #
 # Terminal detection: terminals require Ctrl+Shift+V to paste.
 
@@ -29,16 +31,61 @@ _is_terminal_focused() {
             2>/dev/null | grep -oP "(?<=')[^']+(?=')" | head -1 || true)
     fi
 
-    # X11 fallback (also works for XWayland apps)
+    # X11 / XWayland fallback
     if [[ -z "$name" ]] && command -v xdotool >/dev/null 2>&1; then
         name=$(xdotool getactivewindow getwindowname 2>/dev/null || true)
     fi
 
     local lower="${name,,}"
+    local t
     for t in "${_KNOWN_TERMINALS[@]}"; do
         [[ "$lower" == *"$t"* ]] && return 0
     done
     return 1
+}
+
+# _restore_focus — re-focus the window that was active when recording stopped.
+# Reads VOX_FOCUSED_WINDOW (set by _cmd_stop in vox.sh).
+_restore_focus() {
+    [[ -z "${VOX_FOCUSED_WINDOW:-}" ]] && return 0
+    sleep 0.1  # let notification system settle before refocusing
+    if command -v xdotool >/dev/null 2>&1; then
+        xdotool windowfocus --sync "$VOX_FOCUSED_WINDOW" 2>/dev/null || true
+    elif command -v wmctrl >/dev/null 2>&1; then
+        wmctrl -ia "$VOX_FOCUSED_WINDOW" 2>/dev/null || true
+    fi
+}
+
+# _open_terminal — open a terminal emulator and wait for it to receive focus.
+_open_terminal() {
+    local term=""
+    local t
+    for t in gnome-terminal kitty alacritty konsole wezterm foot tilix xterm; do
+        command -v "$t" >/dev/null 2>&1 && { term="$t"; break; }
+    done
+
+    [[ -z "$term" ]] && return 1
+
+    case "$term" in
+        gnome-terminal) gnome-terminal &;;
+        konsole)        konsole &;;
+        wezterm)        wezterm start &;;
+        *)              "$term" &;;
+    esac
+    disown $!
+
+    # Poll until the terminal grabs focus (up to 5 s), then allow it to settle
+    local i=0
+    while (( i < 25 )); do
+        sleep 0.2
+        if _is_terminal_focused; then
+            sleep 0.4
+            return 0
+        fi
+        i=$(( i + 1 ))
+    done
+    sleep 1  # detection timed out — give one final extra second
+    return 0
 }
 
 # Copy TEXT to the system clipboard.
@@ -109,23 +156,37 @@ _send_enter_key() {
 
 # type_text TEXT MODE
 #   MODE = type    → paste at cursor, no Enter
-#   MODE = suggest → wrap as 'gh copilot suggest "..."', paste + Enter
+#   MODE = suggest → ensure terminal focused (open one if needed),
+#                    wrap as 'gh copilot suggest "..."', paste + Enter
 type_text() {
     local text="$1"
     local mode="${2:-type}"
 
     if [[ "$VOX_TYPING_TOOL" == "clipboard_only" ]]; then
-        # Fallback: copy to clipboard and let user paste manually
+        # No automation tool available — copy and let user paste manually
         _clipboard_copy "$text"
-        notify_done "Copied to clipboard — press Ctrl+Shift+V (terminal) or Ctrl+V to paste."
+        local preview="${text:0:60}"
+        [[ ${#text} -gt 60 ]] && preview+="…"
+        notify_done "${preview}  (copied — paste with Ctrl+V / Ctrl+Shift+V)"
         return 0
+    fi
+
+    # suggest mode requires a terminal; open one if none is focused
+    if [[ "$mode" == "suggest" ]]; then
+        if ! _is_terminal_focused; then
+            if ! _open_terminal; then
+                notify_error "No terminal found. Install gnome-terminal, kitty, or another terminal emulator."
+                return 0
+            fi
+        fi
     fi
 
     # Detect target window type (suggest mode always targets a terminal)
     local is_terminal="false"
-    [[ "$mode" == "suggest" ]] && is_terminal="true"
-    if [[ "$is_terminal" == "false" ]]; then
-        _is_terminal_focused && is_terminal="true" || true
+    if [[ "$mode" == "suggest" ]]; then
+        is_terminal="true"
+    elif _is_terminal_focused; then
+        is_terminal="true"
     fi
 
     # For suggest mode: wrap text as a gh copilot suggest command
@@ -141,14 +202,25 @@ type_text() {
     old_clipboard=$(_clipboard_get)
 
     # Copy text to clipboard
-    _clipboard_copy "$inject_text"
+    if ! _clipboard_copy "$inject_text"; then
+        notify_error "Clipboard copy failed (tool: ${VOX_CLIPBOARD_TOOL}). Is it installed and working?"
+        return 0
+    fi
+
+    # Re-focus the window that was active when recording stopped
+    _restore_focus
 
     # Paste into focused window
-    _send_paste_key "$is_terminal"
+    if ! _send_paste_key "$is_terminal"; then
+        notify_error "Auto-type failed (tool: ${VOX_TYPING_TOOL}). Text is in clipboard — paste with Ctrl+V."
+        return 0
+    fi
+
+    notify_done "$text"
 
     # In suggest mode, submit with Enter
     if [[ "$mode" == "suggest" ]]; then
-        _send_enter_key
+        _send_enter_key || true
     fi
 
     # Restore original clipboard after 3 s (background, non-blocking)
