@@ -132,7 +132,8 @@ type_text() {
     local inject_text="$text"
     if [[ "$mode" == "suggest" ]]; then
         local escaped="${text//\"/\\\"}"   # escape any double quotes in speech
-        inject_text="gh copilot suggest \"${escaped}\""
+        local cmd="${VOX_SUGGEST_CMD:-gh copilot suggest}"
+        inject_text="${cmd} \"${escaped}\""
     fi
 
     # Save current clipboard content

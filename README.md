@@ -1,8 +1,8 @@
 # vox-linux 🎤
 
-> Voice input for Linux — type anywhere, talk to Copilot CLI, or get instant shell command suggestions.
+> Voice input for Linux — type anywhere with your voice, or ask any AI CLI a question hands-free.
 
-**Fully local · No API key needed · X11 & Wayland · GNOME & KDE**
+**Fully local transcription · No cloud needed · X11 & Wayland · GNOME & KDE**
 
 ---
 
@@ -11,17 +11,18 @@
 | Hotkey | Mode | What it does |
 |--------|------|-------------|
 | `Super + V` | **Type anywhere** | Speak → transcribed text appears at your cursor in any app |
-| `Super + S` | **Shell suggest** | Speak → runs `gh copilot suggest "your words"` in your terminal → Copilot suggests the right command |
+| `Super + S` | **AI suggest** | Speak → runs your configured AI CLI command in the terminal |
 
-### Example
+### How suggest mode works
 
 ```
-Press Super+S, say "list all docker containers", press Super+S again
-→ terminal runs: gh copilot suggest "list all docker containers"
-→ Copilot replies with the exact command + options to run/copy/explain it
+Press Super+S  →  say "list all docker containers"  →  press Super+S again
+
+terminal runs:  gh copilot suggest "list all docker containers"
+             (or gemini / claude / llm — whatever you configure)
 ```
 
-Both modes use [whisper.cpp](https://github.com/ggerganov/whisper.cpp) locally — no cloud, no subscription.
+Speech-to-text runs **fully locally** via [whisper.cpp](https://github.com/ggerganov/whisper.cpp). No cloud, no API key needed for transcription. The AI CLI you configure may require its own key.
 
 ---
 
@@ -31,7 +32,6 @@ Both modes use [whisper.cpp](https://github.com/ggerganov/whisper.cpp) locally �
 - **X11** or **Wayland** (auto-detected)
 - **Microphone**
 - ~500 MB disk for whisper binary + base.en model
-- `gh` CLI with Copilot extension (for `suggest` mode only)
 
 ---
 
@@ -49,11 +49,11 @@ The installer will:
 2. Clone and build **whisper.cpp** (~2–5 min, one time only)
 3. Download the **base.en** model (~148 MB)
 4. Create your config at `~/.config/vox-linux/config.cfg`
-5. Register keyboard shortcuts in GNOME or KDE automatically
+5. Register `Super+V` and `Super+S` shortcuts in GNOME or KDE
 
-> ⚠️ **Wayland users:** You will need to log out and back in once after install (required to activate the `input` group for `ydotool`).
+> ⚠️ **Wayland users:** Log out and back in once after install (required to activate the `input` group for `ydotool`).
 
-### Install with a better model
+### Install with a more accurate model
 
 ```bash
 ./install.sh small.en    # better accuracy, ~488 MB
@@ -64,43 +64,63 @@ The installer will:
 
 ## Usage
 
-### Type anywhere (`Super + V`)
+### `Super + V` — Type anywhere
 1. Click where you want to type (browser, email, code editor, terminal…)
-2. Press `Super + V` → notification: *Recording…*
+2. Press `Super + V` → notification: *🎤 Recording…*
 3. Speak
-4. Press `Super + V` again → text appears at cursor
+4. Press `Super + V` again → text appears at your cursor
 
-> **Copilot CLI chat:** just use `Super + V` and press Enter yourself.
+> Works in every app. For Copilot CLI chat: use `Super+V`, then press Enter yourself.
 
-### Shell command suggest (`Super + S`)
-1. Open a terminal
-2. Press `Super + S` → notification: *Recording…*
-3. Say what you want to do: **"list all docker containers"**
-4. Press `Super + S` again → the terminal runs:
+### `Super + S` — AI suggest
+1. Open a terminal with your preferred AI CLI ready
+2. Press `Super + S` → notification: *🎤 Recording…*
+3. Say what you want, e.g. **"show me disk usage by folder"**
+4. Press `Super + S` again → your terminal automatically runs:
    ```
-   gh copilot suggest "list all docker containers"
+   gh copilot suggest "show me disk usage by folder"
    ```
-   Copilot responds with the exact command and options to copy/run/explain it.
+   The AI responds with the exact command, with options to run, copy, or explain it.
 
 ---
 
 ## Configuration
 
-Edit `~/.config/vox-linux/config.cfg`:
+Edit `~/.config/vox-linux/config.cfg` (created automatically on first install):
 
 ```bash
-# Whisper model (tiny.en | base.en | small.en | medium.en | large-v3)
+# ── Whisper model ─────────────────────────────────────────────────────────────
+# tiny.en (~77 MB, fastest) | base.en (~148 MB) | small.en (~488 MB) | large-v3 (~3 GB)
 VOX_WHISPER_MODEL="base.en"
 
-# Language code (en | de | fr | nl | es | …) or "auto"
+# ── Language ──────────────────────────────────────────────────────────────────
+# BCP-47 code: en, de, fr, nl, es, ar, … — or "auto" for auto-detection
 VOX_LANGUAGE="en"
 
-# Override display server detection: auto | wayland | x11
-VOX_DISPLAY_SERVER="auto"
+# ── AI suggest command ────────────────────────────────────────────────────────
+# The CLI used by Super+S. Your speech is appended as a quoted argument.
+VOX_SUGGEST_CMD="gh copilot suggest"
 
-# Override typing tool: auto | ydotool | wtype | xdotool | clipboard_only
-VOX_TYPING_TOOL="auto"
+# ── Display server (usually leave as auto) ────────────────────────────────────
+VOX_DISPLAY_SERVER="auto"   # auto | wayland | x11
+
+# ── Typing tool (usually leave as auto) ──────────────────────────────────────
+VOX_TYPING_TOOL="auto"      # auto | ydotool | wtype | xdotool | clipboard_only
 ```
+
+### Switching your AI CLI
+
+Change `VOX_SUGGEST_CMD` in your config — that's all. Examples:
+
+| AI | Command to set |
+|----|---------------|
+| GitHub Copilot *(default)* | `VOX_SUGGEST_CMD="gh copilot suggest"` |
+| Google Gemini | `VOX_SUGGEST_CMD="gemini"` |
+| Anthropic Claude | `VOX_SUGGEST_CMD="claude"` |
+| Groq (via aichat) | `VOX_SUGGEST_CMD="aichat -m groq"` |
+| Any model (llm CLI) | `VOX_SUGGEST_CMD="llm"` |
+
+The speech becomes the argument: `VOX_SUGGEST_CMD "your words"` — so it works with any CLI that accepts a prompt as an argument.
 
 ---
 
@@ -110,42 +130,40 @@ VOX_TYPING_TOOL="auto"
 ./setup/hotkeys.sh "$(pwd)" "<Super>v" "<Super>s"
 ```
 
-Or set them manually:
+Or manually in:
 - **GNOME**: Settings → Keyboard → Custom Shortcuts
 - **KDE**: System Settings → Shortcuts → Custom Shortcuts
 
-| Command | Description |
-|---------|-------------|
-| `vox type` | Voice → type at cursor |
-| `vox suggest` | Voice → `gh copilot suggest "…"` + Enter |
+| Command | Assign to |
+|---------|-----------|
+| `vox type` | Voice type anywhere |
+| `vox suggest` | Voice AI suggest |
 
 ---
 
 ## Troubleshooting
 
 ### Text is not being typed (Wayland)
-1. Check ydotoold is running: `systemctl --user status ydotoold`
+1. Check ydotoold: `systemctl --user status ydotoold`
 2. Start if needed: `systemctl --user start ydotoold`
-3. If it fails → log out and back in (input group needs to activate)
+3. Still failing? → Log out and back in (the `input` group change needs a fresh session)
 
 ### "No speech detected"
 - Speak louder or closer to the microphone
 - Try a larger model: set `VOX_WHISPER_MODEL="small.en"` in your config
 
-### `gh copilot suggest` mode not working
-- Ensure `gh` CLI is installed: `gh --version`
-- Ensure Copilot extension: `gh extension install github/gh-copilot`
-- Your terminal must be focused when you press the hotkey
+### Suggest mode not working
+- Make sure your terminal is focused when you press `Super+S`
+- Test your AI CLI works manually first: run `gh copilot suggest "test"` (or your configured CLI)
+- For GitHub Copilot: `gh extension install github/gh-copilot`
 
 ### Clipboard is temporarily replaced
 By design — your previous clipboard is restored automatically after 3 seconds.
 
 ### Test transcription directly
 ```bash
-# Record 5 seconds
 pw-record --rate=16000 --channels=1 --format=s16 /tmp/test.wav &
 sleep 5 && kill %1
-# Transcribe
 ~/.local/share/vox-linux/whisper.cpp/whisper-cli \
   -m ~/.local/share/vox-linux/models/ggml-base.en.bin \
   -f /tmp/test.wav --no-timestamps
@@ -165,15 +183,15 @@ sleep 5 && kill %1
 
 ```
 Hotkey press #1  →  vox.sh [type|suggest]
-   ├─ detect: display server, audio backend, typing tool
-   ├─ start pw-record → /tmp/vox-linux/recording.wav (background)
-   └─ create /tmp/vox-linux/recording.lock  →  script exits
+   ├─ auto-detect: display server, audio backend, typing tool
+   ├─ start recorder → /tmp/vox-linux/recording.wav (background)
+   └─ script exits (recorder keeps running)
 
 Hotkey press #2  →  vox.sh [type|suggest]
-   ├─ lock found → stop recorder
-   ├─ whisper-cli → transcribed text
-   ├─ type mode:    copy to clipboard → paste at cursor
-   └─ suggest mode: wrap as 'gh copilot suggest "text"' → paste + Enter
+   ├─ stop recorder
+   ├─ whisper-cli → transcribed text (local, offline)
+   ├─ type mode:    paste text at cursor
+   └─ suggest mode: run  VOX_SUGGEST_CMD "text"  in terminal + Enter
 ```
 
 ---
@@ -181,8 +199,7 @@ Hotkey press #2  →  vox.sh [type|suggest]
 ## Roadmap
 
 - [ ] GUI tray indicator (recording status)
-- [ ] Groq / Gemini API as optional faster backend
-- [ ] Push-to-talk mode (hold hotkey)
+- [ ] Push-to-talk mode (hold hotkey instead of toggle)
 - [ ] Multiple language profiles
 
 ---
