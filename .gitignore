@@ -1,0 +1,19 @@
+# vox-linux .gitignore
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local build artifacts (users build these locally via install.sh)
+# Don't commit whisper.cpp or models — they're downloaded at install time
