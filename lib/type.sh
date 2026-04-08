@@ -165,9 +165,7 @@ type_text() {
     if [[ "$VOX_TYPING_TOOL" == "clipboard_only" ]]; then
         # No automation tool available — copy and let user paste manually
         _clipboard_copy "$text"
-        local preview="${text:0:60}"
-        [[ ${#text} -gt 60 ]] && preview+="…"
-        notify_done "${preview}  (copied — paste with Ctrl+V / Ctrl+Shift+V)"
+        notify_clipboard "$text"
         return 0
     fi
 
@@ -212,7 +210,8 @@ type_text() {
 
     # Paste into focused window
     if ! _send_paste_key "$is_terminal"; then
-        notify_error "Auto-type failed (tool: ${VOX_TYPING_TOOL}). Text is in clipboard — paste with Ctrl+V."
+        # Paste failed — text is already in clipboard, show it prominently
+        notify_clipboard "$text"
         return 0
     fi
 

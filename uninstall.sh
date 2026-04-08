@@ -17,7 +17,8 @@ echo "This will remove:"
 echo "  • $BIN_DIR/vox"
 echo "  • $DATA_DIR   (whisper binary + models)"
 echo "  • GNOME/KDE hotkeys"
-echo "  • ydotoold systemd service"
+echo "  • /etc/udev/rules.d/60-uinput.rules  (ydotool input access)"
+echo "  • ydotoold systemd service (if present)"
 echo ""
 echo "Your config at $CONFIG_DIR/config.cfg will be KEPT."
 echo ""
@@ -64,8 +65,19 @@ print(f"  Removed {len(current) - len(remaining)} vox-linux GNOME shortcuts")
 PYEOF
 fi
 
-# ── ydotoold service ──────────────────────────────────────────────────────────
-step "Removing ydotoold service…"
+# ── udev rule for /dev/uinput ─────────────────────────────────────────────────
+step "Removing udev rule…"
+UDEV_FILE="/etc/udev/rules.d/60-uinput.rules"
+if [[ -f "$UDEV_FILE" ]]; then
+    sudo rm -f "$UDEV_FILE"
+    sudo udevadm control --reload-rules && sudo udevadm trigger
+    ok "Removed $UDEV_FILE"
+else
+    warn "$UDEV_FILE not found — skipping"
+fi
+
+# ── ydotoold service (legacy — may exist from older installs) ─────────────────
+step "Removing ydotoold service (if present)…"
 SVC="$HOME/.config/systemd/user/ydotoold.service"
 if [[ -f "$SVC" ]]; then
     systemctl --user stop ydotoold 2>/dev/null || true

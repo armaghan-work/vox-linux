@@ -98,9 +98,10 @@ elif [[ "$DISTRO" == "arch" ]]; then
     ok "Packages installed"
 fi
 
-# ── 3. input group + ydotoold service (needed for ydotool on Wayland) ─────────
-step "Setting up ydotool…"
+# ── 3. input group + udev rule for /dev/uinput (required for ydotool) ─────────
+step "Setting up ydotool input access…"
 
+# Add user to 'input' group so they can access /dev/uinput
 if ! groups "$USER" | grep -qw input; then
     warn "Adding $USER to 'input' group — a log out/in will be required."
     sudo usermod -aG input "$USER"
@@ -109,28 +110,29 @@ else
     ok "User already in 'input' group"
 fi
 
-svc_dir="$HOME/.config/systemd/user"
-mkdir -p "$svc_dir"
+# Grant the 'input' group read/write access to /dev/uinput.
+# This is the correct general fix: no daemon binary required.
+UDEV_RULE='KERNEL=="uinput", GROUP="input", MODE="0660"'
+UDEV_FILE="/etc/udev/rules.d/60-uinput.rules"
+if [[ ! -f "$UDEV_FILE" ]] || ! grep -qF "$UDEV_RULE" "$UDEV_FILE"; then
+    echo "$UDEV_RULE" | sudo tee "$UDEV_FILE" > /dev/null
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+    ok "udev rule installed: $UDEV_FILE"
+else
+    ok "udev rule already present: $UDEV_FILE"
+fi
 
-cat > "$svc_dir/ydotoold.service" <<EOF
-[Unit]
-Description=ydotool daemon (vox-linux)
-After=default.target
-
-[Service]
-ExecStart=/usr/bin/ydotoold --socket-path /tmp/.ydotool_socket --socket-perm 0660
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=default.target
-EOF
-
-systemctl --user daemon-reload
-systemctl --user enable ydotoold
-systemctl --user start ydotoold 2>/dev/null \
-    && ok "ydotoold service started" \
-    || warn "ydotoold will start automatically after next login"
+# Remove stale ydotoold.service if left over from a previous install
+# (the ydotoold binary is not included in the Ubuntu package)
+_stale_svc="$HOME/.config/systemd/user/ydotoold.service"
+if [[ -f "$_stale_svc" ]]; then
+    systemctl --user stop ydotoold 2>/dev/null || true
+    systemctl --user disable ydotoold 2>/dev/null || true
+    rm -f "$_stale_svc"
+    systemctl --user daemon-reload
+    ok "Removed stale ydotoold service"
+fi
 
 # ── 4. Build whisper.cpp and download model ───────────────────────────────────
 step "Setting up whisper.cpp…"

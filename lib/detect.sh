@@ -36,8 +36,8 @@ detect_typing_tool() {
     fi
     if [[ "$VOX_DISPLAY_SERVER" == "wayland" ]]; then
         local sock="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
-        if command -v ydotool >/dev/null 2>&1 && [[ -S "$sock" ]]; then
-            # ydotool is available and its daemon socket exists
+        if command -v ydotool >/dev/null 2>&1 && { [[ -S "$sock" ]] || [[ -w "/dev/uinput" ]]; }; then
+            # ydotool works via its daemon socket OR via direct /dev/uinput access
             VOX_TYPING_TOOL="ydotool"
         elif command -v wtype >/dev/null 2>&1; then
             VOX_TYPING_TOOL="wtype"

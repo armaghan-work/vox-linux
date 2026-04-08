@@ -42,12 +42,12 @@ vox_notify() {
 }
 
 notify_recording() {
-    vox_notify "🎤 Recording…" "Press hotkey again to stop." "critical" 0
+    vox_notify "🔴 Recording — speak now" "Press the hotkey again to stop." "critical" 0
 }
 
 notify_processing() {
     # Keep visible (timeout=0) until explicitly replaced by notify_done/notify_error
-    vox_notify "⏳ Transcribing…" "" "low" 0
+    vox_notify "⏳ Transcribing…" "Please wait a moment." "low" 0
 }
 
 # notify_done TEXT
@@ -55,7 +55,16 @@ notify_done() {
     local text="${1:-}"
     local preview="${text:0:80}"
     [[ ${#text} -gt 80 ]] && preview+="…"
-    vox_notify "✅ Done" "$preview" "low" 3000
+    vox_notify "✅ Typed" "$preview" "low" 4000
+    rm -f "$_VOX_NOTIF_ID_FILE"
+}
+
+# notify_clipboard TEXT — text is in clipboard, user must paste manually
+notify_clipboard() {
+    local text="${1:-}"
+    local preview="${text:0:120}"
+    [[ ${#text} -gt 120 ]] && preview+="…"
+    vox_notify "📋 Paste now  (Ctrl+V / Ctrl+Shift+V)" "$preview" "normal" 12000
     rm -f "$_VOX_NOTIF_ID_FILE"
 }
 
