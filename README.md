@@ -6,25 +6,19 @@
 
 ---
 
-## Three hotkey modes
+## Two hotkey modes
 
 | Hotkey | Mode | What it does |
 |--------|------|-------------|
 | `Super + V` | **Type anywhere** | Speak → transcribed text appears at your cursor in any app |
-| `Super + C` | **Copilot chat** | Speak → text typed + submitted to the Copilot CLI chat session already open in your terminal |
 | `Super + S` | **Shell suggest** | Speak → runs `gh copilot suggest "your words"` in your terminal → Copilot suggests the right command |
 
-### Which mode to use?
+### Example
 
 ```
-Want to dictate text into any app (browser, editor, chat)?
-  → Super + V
-
-Have the Copilot CLI chat open (this session) and want to ask it something?
-  → Super + C
-
-Want to say "list all docker containers" and get the exact shell command?
-  → Super + S  (runs: gh copilot suggest "list all docker containers")
+Press Super+S, say "list all docker containers", press Super+S again
+→ terminal runs: gh copilot suggest "list all docker containers"
+→ Copilot replies with the exact command + options to run/copy/explain it
 ```
 
 All three modes use [whisper.cpp](https://github.com/ggerganov/whisper.cpp) locally — no cloud, no subscription.
@@ -71,16 +65,12 @@ The installer will:
 ## Usage
 
 ### Type anywhere (`Super + V`)
-1. Click where you want to type (browser URL bar, email, chat, code editor…)
+1. Click where you want to type (browser, email, code editor, terminal…)
 2. Press `Super + V` → notification: *Recording…*
 3. Speak
 4. Press `Super + V` again → text appears at cursor
 
-### Copilot CLI chat (`Super + C`)
-1. Open a terminal and start Copilot CLI (`gh copilot` or however you launch it)
-2. Press `Super + C` → notification: *Recording…*
-3. Ask your question ("explain what this code does", "help me debug this error"…)
-4. Press `Super + C` again → your question is typed and submitted automatically
+> **Copilot CLI chat:** just use `Super + V` and press Enter yourself.
 
 ### Shell command suggest (`Super + S`)
 1. Open a terminal
@@ -117,7 +107,7 @@ VOX_TYPING_TOOL="auto"
 ## Changing hotkeys
 
 ```bash
-./setup/hotkeys.sh "$(pwd)" "<Super>v" "<Super>c" "<Super>s"
+./setup/hotkeys.sh "$(pwd)" "<Super>v" "<Super>s"
 ```
 
 Or set them manually:
@@ -127,7 +117,6 @@ Or set them manually:
 | Command | Description |
 |---------|-------------|
 | `vox type` | Voice → type at cursor |
-| `vox chat` | Voice → type + Enter (Copilot CLI chat) |
 | `vox suggest` | Voice → `gh copilot suggest "…"` + Enter |
 
 ---
@@ -175,17 +164,16 @@ sleep 5 && kill %1
 ## How it works
 
 ```
-Hotkey press #1  →  vox.sh [type|chat|suggest]
+Hotkey press #1  →  vox.sh [type|suggest]
    ├─ detect: display server, audio backend, typing tool
    ├─ start pw-record → /tmp/vox-linux/recording.wav (background)
    └─ create /tmp/vox-linux/recording.lock  →  script exits
 
-Hotkey press #2  →  vox.sh [type|chat|suggest]
+Hotkey press #2  →  vox.sh [type|suggest]
    ├─ lock found → stop recorder
    ├─ whisper-cli → transcribed text
-   ├─ type mode:    copy to clipboard → Ctrl+V at cursor
-   ├─ chat mode:    copy to clipboard → Ctrl+Shift+V + Enter
-   └─ suggest mode: wrap as 'gh copilot suggest "text"' → Ctrl+Shift+V + Enter
+   ├─ type mode:    copy to clipboard → paste at cursor
+   └─ suggest mode: wrap as 'gh copilot suggest "text"' → paste + Enter
 ```
 
 ---

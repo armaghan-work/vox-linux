@@ -5,11 +5,9 @@
 #  1. Save current clipboard
 #  2. Copy transcribed text to clipboard
 #  3. Simulate Ctrl+V (regular apps) or Ctrl+Shift+V (terminals)
-#  4. Press Enter if mode=chat
 #  5. Restore clipboard in background after 3 s
 #
 # Terminal detection: terminals require Ctrl+Shift+V to paste.
-# If mode=chat we always treat target as terminal (user is in Copilot CLI).
 
 readonly _KNOWN_TERMINALS=(
     "gnome-terminal" "terminal" "konsole" "kitty" "alacritty"
@@ -110,8 +108,8 @@ _send_enter_key() {
 }
 
 # type_text TEXT MODE
-#   MODE = type  → paste at cursor, no Enter
-#   MODE = chat  → paste at cursor + Enter (for Copilot CLI / any terminal)
+#   MODE = type    → paste at cursor, no Enter
+#   MODE = suggest → wrap as 'gh copilot suggest "..."', paste + Enter
 type_text() {
     local text="$1"
     local mode="${2:-type}"
@@ -123,9 +121,9 @@ type_text() {
         return 0
     fi
 
-    # Detect target window type
+    # Detect target window type (suggest mode always targets a terminal)
     local is_terminal="false"
-    [[ "$mode" == "chat" || "$mode" == "suggest" ]] && is_terminal="true"
+    [[ "$mode" == "suggest" ]] && is_terminal="true"
     if [[ "$is_terminal" == "false" ]]; then
         _is_terminal_focused && is_terminal="true" || true
     fi
@@ -147,8 +145,8 @@ type_text() {
     # Paste into focused window
     _send_paste_key "$is_terminal"
 
-    # In chat/suggest mode, submit with Enter
-    if [[ "$mode" == "chat" || "$mode" == "suggest" ]]; then
+    # In suggest mode, submit with Enter
+    if [[ "$mode" == "suggest" ]]; then
         _send_enter_key
     fi
 
