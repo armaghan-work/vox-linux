@@ -125,23 +125,30 @@ type_text() {
 
     # Detect target window type
     local is_terminal="false"
-    [[ "$mode" == "chat" ]] && is_terminal="true"
+    [[ "$mode" == "chat" || "$mode" == "suggest" ]] && is_terminal="true"
     if [[ "$is_terminal" == "false" ]]; then
         _is_terminal_focused && is_terminal="true" || true
+    fi
+
+    # For suggest mode: wrap text as a gh copilot suggest command
+    local inject_text="$text"
+    if [[ "$mode" == "suggest" ]]; then
+        local escaped="${text//\"/\\\"}"   # escape any double quotes in speech
+        inject_text="gh copilot suggest \"${escaped}\""
     fi
 
     # Save current clipboard content
     local old_clipboard
     old_clipboard=$(_clipboard_get)
 
-    # Copy transcribed text
-    _clipboard_copy "$text"
+    # Copy text to clipboard
+    _clipboard_copy "$inject_text"
 
     # Paste into focused window
     _send_paste_key "$is_terminal"
 
-    # In chat mode, submit with Enter
-    if [[ "$mode" == "chat" ]]; then
+    # In chat/suggest mode, submit with Enter
+    if [[ "$mode" == "chat" || "$mode" == "suggest" ]]; then
         _send_enter_key
     fi
 

@@ -2,14 +2,17 @@
 # vox.sh — vox-linux main entry point
 #
 # Usage:
-#   vox.sh type   — voice-to-text: transcribe + paste at cursor (no Enter)
-#   vox.sh chat   — voice-to-copilot: transcribe + paste + Enter
+#   vox.sh type     — voice-to-text: transcribe + paste at cursor (no Enter)
+#   vox.sh chat     — voice-to-copilot-chat: transcribe + paste + Enter
+#                     (use when Copilot CLI chat is already open in the terminal)
+#   vox.sh suggest  — voice-to-shell-command: transcribe + run
+#                     'gh copilot suggest "..."' + Enter in the focused terminal
 #
 # Toggle behaviour:
 #   First call  → start recording (runs in background, script exits)
 #   Second call → stop recording, transcribe, inject text
 #
-# Designed to be bound to two GNOME / KDE hotkeys.
+# Designed to be bound to three GNOME / KDE hotkeys.
 
 set -euo pipefail
 
