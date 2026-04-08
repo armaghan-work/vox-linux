@@ -21,7 +21,7 @@ Press Super+S, say "list all docker containers", press Super+S again
 → Copilot replies with the exact command + options to run/copy/explain it
 ```
 
-All three modes use [whisper.cpp](https://github.com/ggerganov/whisper.cpp) locally — no cloud, no subscription.
+Both modes use [whisper.cpp](https://github.com/ggerganov/whisper.cpp) locally — no cloud, no subscription.
 
 ---
 
