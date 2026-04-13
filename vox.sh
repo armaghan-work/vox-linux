@@ -2,15 +2,21 @@
 # vox.sh — vox-linux main entry point
 #
 # Usage:
-#   vox.sh type     — voice-to-text: transcribe + paste at cursor (no Enter)
-#   vox.sh suggest  — voice-to-shell-command: transcribe + run
-#                     'gh copilot suggest "..."' + Enter in the focused terminal
+#   vox.sh type        — voice-to-text: toggle record/stop, paste at cursor
+#   vox.sh suggest     — voice-to-shell: toggle record/stop, run AI CLI
+#   vox.sh ptt-start [MODE]  — PTT: start recording (no-op if already recording)
+#   vox.sh ptt-stop          — PTT: stop recording + transcribe (no-op if idle)
 #
-# Toggle behaviour:
+# Toggle behaviour (type / suggest):
 #   First call  → start recording (runs in background, script exits)
 #   Second call → stop recording, transcribe, inject text
 #
-# Designed to be bound to two GNOME / KDE hotkeys.
+# PTT behaviour (called by vox-ptt.sh daemon on key hold/release):
+#   ptt-start  → start recording only if not already recording
+#   ptt-stop   → stop recording + transcribe only if currently recording
+#
+# Designed to be bound to two GNOME / KDE hotkeys (toggle), or driven by the
+# vox-ptt.sh daemon for push-to-talk (hold key = record, release = transcribe).
 
 set -euo pipefail
 
@@ -138,9 +144,33 @@ _cmd_stop() {
     vox_log "cmd_stop: type_text returned"
 }
 
-# ── Toggle: start or stop ─────────────────────────────────────────────────────
-if [[ -f "$LOCKFILE" ]]; then
-    _cmd_stop
-else
-    _cmd_start "$MODE"
-fi
+# ── Dispatch ─────────────────────────────────────────────────────────────────
+#
+# ptt-start / ptt-stop are called by the vox-ptt.sh daemon (hold-to-talk).
+# They guard against race conditions: ptt-start is a no-op if already
+# recording; ptt-stop is a no-op if not currently recording.
+#
+# type / suggest use the original toggle logic (hotkey = start OR stop).
+case "$MODE" in
+    ptt-start)
+        PTT_MODE="${2:-type}"
+        vox_log "ptt-start: lockfile=$([ -f "$LOCKFILE" ] && echo exists || echo absent)"
+        if [[ ! -f "$LOCKFILE" ]]; then
+            _cmd_start "$PTT_MODE"
+        fi
+        ;;
+    ptt-stop)
+        vox_log "ptt-stop: lockfile=$([ -f "$LOCKFILE" ] && echo exists || echo absent)"
+        if [[ -f "$LOCKFILE" ]]; then
+            _cmd_stop
+        fi
+        ;;
+    *)
+        # Toggle: first call starts, second call stops.
+        if [[ -f "$LOCKFILE" ]]; then
+            _cmd_stop
+        else
+            _cmd_start "$MODE"
+        fi
+        ;;
+esac

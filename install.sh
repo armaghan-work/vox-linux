@@ -164,6 +164,14 @@ EOF
 chmod +x "$BIN_DIR/vox"
 ok "Installed: $BIN_DIR/vox"
 
+# Install vox-ptt launcher
+cat > "$BIN_DIR/vox-ptt" <<EOF
+#!/usr/bin/env bash
+exec "$INSTALL_DIR/vox-ptt.sh" "\$@"
+EOF
+chmod +x "$BIN_DIR/vox-ptt"
+ok "Installed: $BIN_DIR/vox-ptt"
+
 # Auto-add ~/.local/bin to PATH in ~/.bashrc if missing
 if ! echo ":${PATH}:" | grep -q ":$BIN_DIR:"; then
     for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
@@ -179,6 +187,7 @@ fi
 
 # Make all scripts executable
 chmod +x "$INSTALL_DIR/vox.sh" \
+         "$INSTALL_DIR/vox-ptt.sh" \
          "$INSTALL_DIR/setup/whisper.sh" \
          "$INSTALL_DIR/setup/hotkeys.sh" \
          "$INSTALL_DIR/uninstall.sh"
@@ -187,15 +196,34 @@ chmod +x "$INSTALL_DIR/vox.sh" \
 step "Setting up keyboard shortcuts…"
 bash "$INSTALL_DIR/setup/hotkeys.sh" "$INSTALL_DIR"
 
+# ── 8. Optional: python3-evdev for push-to-talk ───────────────────────────────
+step "Checking push-to-talk dependencies…"
+if python3 -c "import evdev" 2>/dev/null; then
+    ok "python3-evdev already installed — PTT ready"
+else
+    warn "python3-evdev not installed — push-to-talk will not work until it is."
+    if [[ "$DISTRO" == "debian" ]]; then
+        echo "  Install with: sudo apt install python3-evdev"
+    elif [[ "$DISTRO" == "arch" ]]; then
+        echo "  Install with: sudo pacman -S python-evdev"
+    fi
+fi
+
 # ── 8. Summary ────────────────────────────────────────────────────────────────
 echo ""
 banner "═══════════════════════════════════════════════"
 banner "   vox-linux installed successfully!           "
 banner "═══════════════════════════════════════════════"
 echo ""
-echo "  Hotkeys:"
+echo "  Hotkeys (toggle mode):"
 echo "    Ctrl+Alt+V  →  🎤 Voice type anywhere"
 echo "    Ctrl+Alt+S  →  🤖 Voice AI suggest (copilot -i)"
+echo ""
+echo "  Push-to-talk mode (hold key = record, release = transcribe):"
+echo "    vox-ptt start    →  start PTT daemon (this session)"
+echo "    vox-ptt install  →  auto-start at login (systemd user service)"
+echo "    Default PTT key  :  F9  (change VOX_PTT_KEY in config.cfg)"
+echo "    ⚠  F9 must NOT be a registered GNOME/KDE hotkey before enabling PTT"
 echo ""
 echo "  Test from terminal:"
 echo "    vox type      (speak, press hotkey again to stop)"

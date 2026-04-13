@@ -46,3 +46,20 @@
 # VOX_SUGGEST_CMD="claude"     # Anthropic Claude CLI
 # VOX_SUGGEST_CMD="llm"        # Simon Willison's multi-model CLI
 # VOX_SUGGEST_CMD="aichat"     # aichat (supports Groq, Claude, Gemini…)
+
+# ─── Push-to-talk (PTT) daemon ────────────────────────────────────────────────
+# Hold the PTT key to record; release to transcribe.
+# Start daemon with: vox-ptt start   (or: vox-ptt install  to auto-start at login)
+#
+# Key to hold. Use evdev KEY_* names. Examples:
+#   KEY_F9               — single key (default)
+#   KEY_RIGHTCTRL+KEY_F9 — modifier combo (hold Right Ctrl + F9)
+# List all key names:
+#   python3 -c "from evdev import ecodes; print([k for k in dir(ecodes) if k.startswith('KEY_')])"
+#
+# IMPORTANT: The PTT key must NOT be registered as a GNOME or KDE hotkey.
+#            Remove any conflicting shortcut before enabling PTT.
+# VOX_PTT_KEY="KEY_F9"
+
+# Mode when PTT key is released: type (paste text) | suggest (run AI CLI)
+# VOX_PTT_MODE="type"

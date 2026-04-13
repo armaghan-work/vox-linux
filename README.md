@@ -6,12 +6,13 @@
 
 ---
 
-## Two hotkey modes
+## Three input modes
 
-| Hotkey | Mode | What it does |
-|--------|------|-------------|
-| `Ctrl + Alt + V` | **Type anywhere** | Speak → transcribed text appears at your cursor in any app |
-| `Ctrl + Alt + S` | **AI suggest** | Speak → runs your configured AI CLI command in the terminal |
+| Mode | Trigger | What it does |
+|------|---------|-------------|
+| **Toggle type** | `Ctrl + Alt + V` | Press to start recording, press again to stop → text at cursor |
+| **Toggle suggest** | `Ctrl + Alt + S` | Press to start recording, press again to stop → AI CLI in terminal |
+| **Push-to-talk** | Hold configured key (default `F9`) | Hold to record, release to transcribe → text at cursor |
 
 ### How suggest mode works
 
@@ -21,6 +22,16 @@ Press Ctrl+Alt+S  →  say "list all docker containers"  →  press Ctrl+Alt+S a
 terminal runs:  copilot -i "list all docker containers"
              (or gemini / claude / llm — whatever you configure)
 ```
+
+### How push-to-talk works
+
+```
+Hold F9  →  🎤 Recording…  →  release F9  →  text appears at cursor
+```
+
+Hold the PTT key while speaking. Release when done — transcription runs immediately. No second keypress needed.
+
+PTT requires the `vox-ptt` daemon to be running (see [Push-to-talk](#push-to-talk-ptt) below).
 
 Speech-to-text runs **fully locally** via [whisper.cpp](https://github.com/ggerganov/whisper.cpp). No cloud, no API key needed for transcription. The AI CLI you configure may require its own key.
 
@@ -114,7 +125,56 @@ Works with any CLI that accepts a prompt as its first argument.
 
 ---
 
-## Changing hotkeys
+## Push-to-talk (PTT)
+
+Hold a key while speaking — release to transcribe. No second keypress needed.
+
+### Setup
+
+**1. Install the evdev library** (one-time):
+```bash
+sudo apt install python3-evdev   # Debian/Ubuntu
+sudo pacman -S python-evdev      # Arch
+```
+
+**2. Configure your PTT key** in `~/.config/vox-linux/config.cfg`:
+```bash
+# Uncomment and set your preferred key
+VOX_PTT_KEY="KEY_F9"         # single key
+# VOX_PTT_KEY="KEY_RIGHTCTRL+KEY_F9"  # modifier + key combo
+VOX_PTT_MODE="type"          # type | suggest
+```
+> ⚠️ The PTT key must **not** be registered as a GNOME or KDE hotkey. If it is, both the desktop shortcut and the PTT daemon will fire on press. Remove the conflicting shortcut first.
+
+**3. Start the daemon:**
+```bash
+vox-ptt start             # for this session only
+vox-ptt install           # auto-start at login (systemd user service)
+```
+
+### PTT commands
+```bash
+vox-ptt start     # start daemon (current session)
+vox-ptt stop      # stop daemon
+vox-ptt restart   # restart daemon
+vox-ptt status    # show running status
+vox-ptt install   # install systemd user service (auto-start at login)
+vox-ptt uninstall # remove systemd user service
+```
+
+### PTT key names
+
+Use evdev `KEY_*` constants. List all options:
+```bash
+python3 -c "from evdev import ecodes; print([k for k in dir(ecodes) if k.startswith('KEY_')])"
+```
+
+Common choices: `KEY_F9`, `KEY_F10`, `KEY_RIGHTCTRL`, `KEY_RIGHTALT`
+
+---
+
+
+## Changing toggle hotkeys
 
 ```bash
 ./setup/hotkeys.sh "$(pwd)" "<Primary><Alt>v" "<Primary><Alt>s"
@@ -172,12 +232,31 @@ sleep 5 && kill %1
 cat /tmp/vox-linux/debug.log
 ```
 
+### PTT daemon not working
+
+1. Check it's running: `vox-ptt status`
+2. Check python3-evdev: `python3 -c "import evdev; print('ok')"`
+3. Check input group: `groups | grep input` (log out/in after adding)
+4. Check the debug log: `tail -f /tmp/vox-linux/debug.log`
+5. Make sure the PTT key is **not** registered as a GNOME/KDE hotkey
+
+### PTT fires twice on key press
+
+The PTT key is also registered as a GNOME or KDE keyboard shortcut. Remove the conflicting shortcut:
+- **GNOME**: Settings → Keyboard → Keyboard Shortcuts → Custom Shortcuts
+- **KDE**: System Settings → Shortcuts → Custom Shortcuts
+
 ---
 
 ## Uninstall
 
 ```bash
 ./uninstall.sh
+```
+
+If you installed the PTT service, remove it first:
+```bash
+vox-ptt uninstall
 ```
 
 ---
@@ -195,6 +274,10 @@ Hotkey press #2  →  vox.sh [type|suggest]
    ├─ whisper-cli → transcribed text (local, fully offline)
    ├─ type mode:    inject text directly at cursor via ydotool/xdotool
    └─ suggest mode: run  VOX_SUGGEST_CMD "text"  in terminal + Enter
+
+PTT (push-to-talk):
+   Key held    →  vox-ptt daemon → vox.sh ptt-start  →  recording starts
+   Key released →  vox-ptt daemon → vox.sh ptt-stop   →  transcribe + inject
 ```
 
 **Typing method by session:**
@@ -209,13 +292,12 @@ Hotkey press #2  →  vox.sh [type|suggest]
 ## Roadmap
 
 - [ ] GUI tray indicator (recording status)
-- [ ] Push-to-talk mode (hold hotkey instead of toggle)
 - [ ] Multiple language profiles
+- [ ] Auto-stop watchdog (recording > 60s)
 
 ---
 
 ## License
 
 MIT
-
 
