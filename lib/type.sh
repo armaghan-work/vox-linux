@@ -94,35 +94,40 @@ _clipboard_copy() {
 # ydotool→ kernel uinput; types regardless of Wayland/X11 focus state.
 _type_direct() {
     local text="$1"
-    # Allow the compositor time to release the hotkey modifier keys (Ctrl+Alt)
-    # before we send new key events. Without this, some apps see stray modifiers.
-    sleep 0.3
 
     case "$VOX_TYPING_TOOL" in
         wtype)
+            sleep 0.3
             wtype -- "$text"
             ;;
         xdotool)
+            sleep 0.3
             # --clearmodifiers: release any held modifiers (e.g. Ctrl+Alt from hotkey)
             # --delay 0: no inter-character delay
             DISPLAY=:0 xdotool type --clearmodifiers --delay 0 -- "$text"
             ;;
         ydotool)
             local sock="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
-            YDOTOOL_SOCKET="$sock" ydotool type --delay 30 -- "$text"
+            # --delay 400: wait 400ms after creating the uinput device so GNOME
+            # has time to register it before we send the first keystroke.
+            # Without this, the first character is dropped on GNOME Wayland.
+            # --key-delay 12: 12ms between keystrokes (ydotool default).
+            YDOTOOL_SOCKET="$sock" ydotool type --delay 400 --key-delay 12 -- "$text"
             ;;
     esac
 }
 
 # Simulate pressing Enter.
 _send_enter_key() {
-    sleep 0.05
     case "$VOX_TYPING_TOOL" in
-        wtype)   wtype -k Return ;;
-        xdotool) DISPLAY=:0 xdotool key --clearmodifiers Return ;;
+        wtype)   sleep 0.05; wtype -k Return ;;
+        xdotool) sleep 0.05; DISPLAY=:0 xdotool key --clearmodifiers Return ;;
         ydotool)
+            # ydotool key in direct mode outputs raw keycodes as digit characters
+            # instead of pressing keys (e.g. key 28:1 28:0 types "22").
+            # Use 'ydotool type' with a newline instead.
             local sock="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
-            YDOTOOL_SOCKET="$sock" ydotool key 28:1 28:0
+            YDOTOOL_SOCKET="$sock" ydotool type --delay 150 -- $'\n'
             ;;
     esac
 }
