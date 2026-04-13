@@ -106,6 +106,8 @@ Edit `~/.config/vox-linux/config.cfg` — uncomment and change only the values y
 # VOX_SUGGEST_CMD="copilot -i"  # AI CLI for Ctrl+Alt+S (see below)
 # VOX_DISPLAY_SERVER="auto"     # auto | wayland | x11
 # VOX_TYPING_TOOL="auto"        # auto | ydotool | xdotool | clipboard_only
+# VOX_PTT_KEY="KEY_F9"          # push-to-talk key (then run: vox-ptt restart)
+# VOX_PTT_MODE="type"           # PTT mode: type | suggest
 ```
 
 ### Switching your AI CLI

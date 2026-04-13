@@ -14,21 +14,21 @@ BIN_DIR="$HOME/.local/bin"
 
 echo ""
 echo "This will remove:"
-echo "  • $BIN_DIR/vox"
+echo "  • $BIN_DIR/vox  and  $BIN_DIR/vox-ptt"
 echo "  • $DATA_DIR   (whisper binary + models)"
 echo "  • GNOME/KDE hotkeys"
+echo "  • vox-ptt systemd user service"
 echo "  • /etc/udev/rules.d/60-uinput.rules  (ydotool input access)"
-echo "  • ydotoold systemd service (if present)"
 echo ""
 echo "Your config at $CONFIG_DIR/config.cfg will be KEPT."
 echo ""
 read -rp "Continue? [y/N] " confirm
 [[ "${confirm,,}" == "y" ]] || { echo "Aborted."; exit 0; }
 
-# ── Launcher ──────────────────────────────────────────────────────────────────
-step "Removing launcher…"
-rm -f "$BIN_DIR/vox"
-ok "Removed $BIN_DIR/vox"
+# ── Launchers ─────────────────────────────────────────────────────────────────
+step "Removing launchers…"
+rm -f "$BIN_DIR/vox" "$BIN_DIR/vox-ptt"
+ok "Removed $BIN_DIR/vox  and  $BIN_DIR/vox-ptt"
 
 # ── Data (whisper + models) ───────────────────────────────────────────────────
 step "Removing data directory…"
@@ -49,7 +49,7 @@ media_keys = "org.gnome.settings-daemon.plugins.media-keys"
 custom_base = f"{media_keys}.custom-keybinding"
 vox_paths = [
     "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/vox-type/",
-    "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/vox-chat/",
+    "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/vox-suggest/",
 ]
 
 raw = subprocess.check_output(['gsettings', 'get', media_keys, 'custom-keybindings'], text=True).strip()
@@ -63,6 +63,21 @@ remaining = [p for p in current if p not in vox_paths]
 subprocess.run(['gsettings', 'set', media_keys, 'custom-keybindings', str(remaining).replace('"', "'")])
 print(f"  Removed {len(current) - len(remaining)} vox-linux GNOME shortcuts")
 PYEOF
+fi
+
+# ── vox-ptt systemd service ───────────────────────────────────────────────────
+step "Removing vox-ptt service…"
+PTT_SVC="$HOME/.config/systemd/user/vox-ptt.service"
+if systemctl --user is-active --quiet vox-ptt 2>/dev/null; then
+    systemctl --user stop vox-ptt
+fi
+systemctl --user disable vox-ptt 2>/dev/null || true
+if [[ -f "$PTT_SVC" ]]; then
+    rm -f "$PTT_SVC"
+    systemctl --user daemon-reload
+    ok "vox-ptt service removed"
+else
+    warn "vox-ptt service not found — skipping"
 fi
 
 # ── udev rule for /dev/uinput ─────────────────────────────────────────────────
