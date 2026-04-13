@@ -37,14 +37,15 @@ detect_typing_tool() {
     if [[ "$VOX_DISPLAY_SERVER" == "wayland" ]]; then
         local sock="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
         if command -v ydotool >/dev/null 2>&1 && [[ -S "$sock" ]]; then
-            # Only use ydotool when the ydotoold daemon socket is present.
-            # Without the daemon, direct /dev/uinput mode has known latency
-            # and key-injection bugs (modifier keys misfiring as raw digits).
+            # Daemon socket present — full ydotool support
             VOX_TYPING_TOOL="ydotool"
-        elif command -v wtype >/dev/null 2>&1; then
-            VOX_TYPING_TOOL="wtype"
+        elif command -v ydotool >/dev/null 2>&1 && [[ -w "/dev/uinput" ]]; then
+            # No daemon, but direct /dev/uinput access (user is in input group).
+            # Use ydotool type only — character injection works in direct mode.
+            # Do NOT use ydotool key (modifier key sequences produce raw digits).
+            VOX_TYPING_TOOL="ydotool"
         elif command -v xdotool >/dev/null 2>&1; then
-            # XWayland fallback — works for any app running under XWayland
+            # XWayland fallback — works for apps running under XWayland
             VOX_TYPING_TOOL="xdotool"
         else
             VOX_TYPING_TOOL="clipboard_only"
