@@ -76,43 +76,42 @@ That's it. The installer sets everything up automatically:
 ## Usage
 
 ### `Ctrl + Alt + V` — Type anywhere
-1. Click where you want to type (browser, email, code editor, terminal…)
-2. Press `Ctrl + Alt + V` → notification: *🎤 Recording…*
+1. Click where you want text (browser, email, editor, terminal…)
+2. Press `Ctrl + Alt + V` → *🎤 Recording…*
 3. Speak
 4. Press `Ctrl + Alt + V` again → text appears at your cursor
 
-Works in every app: native Wayland apps, X11 apps, terminals, browsers.
-
 ### `Ctrl + Alt + S` — AI suggest
-1. Press `Ctrl + Alt + S` → notification: *🎤 Recording…*
+1. Press `Ctrl + Alt + S` → *🎤 Recording…*
 2. Say what you want, e.g. **"show me disk usage by folder"**
-3. Press `Ctrl + Alt + S` again → a terminal opens (if none is focused) and runs:
-   ```
-   copilot -i "show me disk usage by folder"
-   ```
-   The AI responds with the exact command, with options to run, copy, or explain it.
+3. Press `Ctrl + Alt + S` again → terminal runs your AI CLI with those words
+
+### `F9` — Push-to-talk
+Hold `F9` while speaking. Release when done — text appears immediately. No second keypress needed.
 
 ---
 
 ## Configuration
 
-Edit `~/.config/vox-linux/config.cfg` — uncomment and change only the values you want to override. All other settings come from built-in defaults automatically.
+Edit `~/.config/vox-linux/config.cfg` — every option is commented with an explanation. Uncomment only what you want to change; everything else uses sensible defaults.
 
-```bash
-# Uncomment to change — only set what you want to override
+Common changes:
 
-# VOX_WHISPER_MODEL="base.en"   # tiny.en | base.en | small.en | medium.en | large-v3
-# VOX_LANGUAGE="en"             # en, de, fr, nl, es, ar, … — or "auto"
-# VOX_SUGGEST_CMD="copilot -i"  # AI CLI for Ctrl+Alt+S (see below)
-# VOX_DISPLAY_SERVER="auto"     # auto | wayland | x11
-# VOX_TYPING_TOOL="auto"        # auto | ydotool | xdotool | clipboard_only
-# VOX_PTT_KEY="KEY_F9"          # push-to-talk key (then run: vox-ptt restart)
-# VOX_PTT_MODE="type"           # PTT mode: type | suggest
-```
+| What | Setting |
+|------|---------|
+| Whisper model | `VOX_WHISPER_MODEL="small.en"` |
+| AI CLI for suggest | `VOX_SUGGEST_CMD="gemini"` |
+| PTT type key | `VOX_PTT_TYPE_KEY="KEY_F10"` |
+| Add PTT suggest key | `VOX_PTT_SUGGEST_KEY="KEY_F8"` |
+| Toggle hotkeys | `VOX_HOTKEY_TYPE="<Primary><Alt>v"` |
+
+**After changing PTT keys** → `vox-ptt restart`
+
+**After changing toggle hotkeys** → `./setup/hotkeys.sh` (from the vox-linux directory)
 
 ### Switching your AI CLI
 
-Change `VOX_SUGGEST_CMD` in your config. Your speech is appended as a quoted argument: `VOX_SUGGEST_CMD "your words"`.
+Change `VOX_SUGGEST_CMD`. Your speech is appended as a quoted argument.
 
 | AI | Config value |
 |----|-------------|
@@ -120,51 +119,8 @@ Change `VOX_SUGGEST_CMD` in your config. Your speech is appended as a quoted arg
 | Google Gemini | `VOX_SUGGEST_CMD="gemini"` |
 | Anthropic Claude | `VOX_SUGGEST_CMD="claude"` |
 | Any model (llm CLI) | `VOX_SUGGEST_CMD="llm"` |
-| aichat | `VOX_SUGGEST_CMD="aichat"` |
 
-Works with any CLI that accepts a prompt as its first argument.
-
----
-
-## Push-to-talk (PTT)
-
-PTT is installed and auto-started by `./install.sh` — no extra steps needed.
-
-**Default key: `F9`** — hold to record, release to transcribe.
-
-To change the key, edit `~/.config/vox-linux/config.cfg`:
-```bash
-VOX_PTT_KEY="KEY_F9"         # single key  (default)
-# VOX_PTT_KEY="KEY_RIGHTCTRL+KEY_F9"  # modifier + key combo
-VOX_PTT_MODE="type"          # type | suggest
-```
-
-Then restart the daemon to apply: `vox-ptt restart`
-
-> ⚠️ The PTT key must **not** also be registered as a GNOME or KDE hotkey — it would fire twice. Remove any conflicting shortcut before changing the PTT key.
-
-**PTT key names** — use evdev `KEY_*` constants:
-```bash
-python3 -c "from evdev import ecodes; print([k for k in dir(ecodes) if k.startswith('KEY_')])"
-```
-Common choices: `KEY_F9`, `KEY_F10`, `KEY_RIGHTCTRL`, `KEY_RIGHTALT`
-
----
-
-## Changing toggle hotkeys
-
-```bash
-./setup/hotkeys.sh "$(pwd)" "<Primary><Alt>v" "<Primary><Alt>s"
-```
-
-Or manually in:
-- **GNOME**: Settings → Keyboard → Custom Shortcuts
-- **KDE**: System Settings → Shortcuts → Custom Shortcuts
-
-| Command | Assign to |
-|---------|-----------|
-| `vox type` | Voice type anywhere |
-| `vox suggest` | Voice AI suggest |
+> ⚠️ PTT keys must **not** also be registered as GNOME/KDE toggle hotkeys — they would fire twice.
 
 ---
 
@@ -229,11 +185,6 @@ The PTT key is also registered as a GNOME or KDE keyboard shortcut. Remove the c
 
 ```bash
 ./uninstall.sh
-```
-
-If you installed the PTT service, remove it first:
-```bash
-vox-ptt uninstall
 ```
 
 ---
