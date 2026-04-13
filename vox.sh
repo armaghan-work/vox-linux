@@ -42,6 +42,13 @@ MODE_FILE="$VOX_STATE_DIR/mode"
 
 MODE="${1:-type}"
 
+# ── Debug logging ─────────────────────────────────────────────────────────────
+VOX_LOG="$VOX_STATE_DIR/debug.log"
+vox_log() { printf '[%s] %s\n' "$(date '+%H:%M:%S.%3N')" "$*" >> "$VOX_LOG"; }
+# Rotate log if it grows large
+[[ -f "$VOX_LOG" ]] && (( $(wc -c < "$VOX_LOG") > 102400 )) && mv "$VOX_LOG" "${VOX_LOG}.old"
+vox_log "=== vox.sh invoked: mode=${1:-type} PID=$$ DISPLAY=${DISPLAY:-unset} WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset} ==="
+
 # ── Cleanup trap ──────────────────────────────────────────────────────────────
 # _VOX_KEEP_LOCK is set to true only when _cmd_start completes successfully,
 # so the lockfile survives between the start and stop invocations.
@@ -68,6 +75,7 @@ detect_display_server
 detect_audio_backend
 detect_typing_tool
 detect_clipboard_tool
+vox_log "detected: display=$VOX_DISPLAY_SERVER audio=$VOX_AUDIO_BACKEND typing=$VOX_TYPING_TOOL clipboard=$VOX_CLIPBOARD_TOOL"
 
 # ── Commands ──────────────────────────────────────────────────────────────────
 
@@ -84,38 +92,48 @@ _cmd_start() {
 }
 
 _cmd_stop() {
+    vox_log "cmd_stop: start"
     # Capture the active window NOW, before transcription takes focus away.
     # type_text uses this (via VOX_FOCUSED_WINDOW) to re-focus before pasting.
     VOX_FOCUSED_WINDOW=""
     if command -v xdotool >/dev/null 2>&1; then
         VOX_FOCUSED_WINDOW=$(xdotool getactivewindow 2>/dev/null || true)
     fi
+    vox_log "cmd_stop: focused_window='$VOX_FOCUSED_WINDOW'"
 
     notify_processing
+    vox_log "cmd_stop: stopping audio recorder"
     audio_stop "$PIDFILE"
     rm -f "$LOCKFILE"
+    vox_log "cmd_stop: audio stopped, lockfile removed"
 
     local mode
     mode=$(cat "$MODE_FILE" 2>/dev/null || echo "type")
     rm -f "$MODE_FILE"
 
+    vox_log "cmd_stop: starting transcription (mode=$mode)"
     local text
     if ! text=$(transcribe "$AUDIO_FILE"); then
+        vox_log "cmd_stop: transcription FAILED"
         notify_error "Transcription failed — check install.sh output."
         exit 1
     fi
+    vox_log "cmd_stop: transcription done, text='${text:0:80}'"
 
     # Trim surrounding whitespace
     text="${text#"${text%%[![:space:]]*}"}"
     text="${text%"${text##*[![:space:]]}"}"
 
     if [[ -z "$text" ]]; then
+        vox_log "cmd_stop: no speech detected"
         notify_error "No speech detected. Try speaking closer to the microphone."
         exit 0
     fi
 
+    vox_log "cmd_stop: calling type_text"
     # type_text handles notify_done / notify_error internally
     type_text "$text" "$mode"
+    vox_log "cmd_stop: type_text returned"
 }
 
 # ── Toggle: start or stop ─────────────────────────────────────────────────────

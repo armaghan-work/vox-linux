@@ -162,8 +162,13 @@ type_text() {
     local text="$1"
     local mode="${2:-type}"
 
+    # vox_log may not be defined if called standalone; guard with a no-op
+    local _log="${VOX_LOG:-/tmp/vox-linux/debug.log}"
+    _tlog() { printf '[%s] type_text: %s\n' "$(date '+%H:%M:%S.%3N')" "$*" >> "$_log"; }
+
+    _tlog "start mode=$mode tool=$VOX_TYPING_TOOL clipboard=$VOX_CLIPBOARD_TOOL"
+
     if [[ "$VOX_TYPING_TOOL" == "clipboard_only" ]]; then
-        # No automation tool available — copy and let user paste manually
         _clipboard_copy "$text"
         notify_clipboard "$text"
         return 0
@@ -186,6 +191,7 @@ type_text() {
     elif _is_terminal_focused; then
         is_terminal="true"
     fi
+    _tlog "is_terminal=$is_terminal"
 
     # For suggest mode: wrap text as a gh copilot suggest command
     local inject_text="$text"
@@ -196,26 +202,35 @@ type_text() {
     fi
 
     # Save current clipboard content
+    _tlog "saving old clipboard"
     local old_clipboard
     old_clipboard=$(_clipboard_get)
 
     # Copy text to clipboard
+    _tlog "copying text to clipboard"
     if ! _clipboard_copy "$inject_text"; then
+        _tlog "clipboard copy FAILED"
         notify_error "Clipboard copy failed (tool: ${VOX_CLIPBOARD_TOOL}). Is it installed and working?"
         return 0
     fi
+    _tlog "clipboard copy OK"
 
     # Re-focus the window that was active when recording stopped
+    _tlog "restoring focus to window='${VOX_FOCUSED_WINDOW:-}'"
     _restore_focus
+    _tlog "focus restored"
 
     # Paste into focused window
+    _tlog "sending paste key (is_terminal=$is_terminal)"
     if ! _send_paste_key "$is_terminal"; then
-        # Paste failed — text is already in clipboard, show it prominently
+        _tlog "send_paste_key FAILED — falling back to clipboard notify"
         notify_clipboard "$text"
         return 0
     fi
+    _tlog "send_paste_key OK"
 
     notify_done "$text"
+    _tlog "notify_done called"
 
     # In suggest mode, submit with Enter
     if [[ "$mode" == "suggest" ]]; then
