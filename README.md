@@ -31,8 +31,6 @@ Hold F9  →  🎤 Recording…  →  release F9  →  text appears at cursor
 
 Hold the PTT key while speaking. Release when done — transcription runs immediately. No second keypress needed.
 
-PTT requires the `vox-ptt` daemon to be running (see [Push-to-talk](#push-to-talk-ptt) below).
-
 Speech-to-text runs **fully locally** via [whisper.cpp](https://github.com/ggerganov/whisper.cpp). No cloud, no API key needed for transcription. The AI CLI you configure may require its own key.
 
 ---
@@ -54,16 +52,17 @@ cd vox-linux
 ./install.sh          # run as your normal user, NOT with sudo
 ```
 
-The installer will:
+That's it. The installer sets everything up automatically:
 
-1. Install system packages (`ydotool`, `wl-clipboard`, `xdotool`, `xclip`)
-2. Add your user to the `input` group (needed for `ydotool` to type on Wayland)
-3. Clone and build **whisper.cpp** (~2–5 min, one time only)
-4. Download the **base.en** model (~148 MB)
-5. Create your config at `~/.config/vox-linux/config.cfg`
-6. Register `Ctrl+Alt+V` and `Ctrl+Alt+S` shortcuts in GNOME or KDE
+1. Installs system packages (`ydotool`, `wl-clipboard`, `xdotool`, `xclip`, `python3-evdev`)
+2. Adds your user to the `input` group (needed for typing and push-to-talk)
+3. Clones and builds **whisper.cpp** (~2–5 min, one time only)
+4. Downloads the **base.en** model (~148 MB)
+5. Creates your config at `~/.config/vox-linux/config.cfg`
+6. Registers `Ctrl+Alt+V` and `Ctrl+Alt+S` shortcuts in GNOME or KDE
+7. Installs the **push-to-talk daemon** as a systemd user service (auto-starts at login)
 
-> ⚠️ **After install:** Log out and back in once. This activates the `input` group membership that `ydotool` needs to type on Wayland.
+> ⚠️ **After install:** Log out and back in once. This activates the `input` group membership needed for typing and push-to-talk.
 
 ### Install with a more accurate model
 
@@ -127,52 +126,28 @@ Works with any CLI that accepts a prompt as its first argument.
 
 ## Push-to-talk (PTT)
 
-Hold a key while speaking — release to transcribe. No second keypress needed.
+PTT is installed and auto-started by `./install.sh` — no extra steps needed.
 
-### Setup
+**Default key: `F9`** — hold to record, release to transcribe.
 
-**1. Install the evdev library** (one-time):
+To change the key, edit `~/.config/vox-linux/config.cfg`:
 ```bash
-sudo apt install python3-evdev   # Debian/Ubuntu
-sudo pacman -S python-evdev      # Arch
-```
-
-**2. Configure your PTT key** in `~/.config/vox-linux/config.cfg`:
-```bash
-# Uncomment and set your preferred key
-VOX_PTT_KEY="KEY_F9"         # single key
+VOX_PTT_KEY="KEY_F9"         # single key  (default)
 # VOX_PTT_KEY="KEY_RIGHTCTRL+KEY_F9"  # modifier + key combo
 VOX_PTT_MODE="type"          # type | suggest
 ```
-> ⚠️ The PTT key must **not** be registered as a GNOME or KDE hotkey. If it is, both the desktop shortcut and the PTT daemon will fire on press. Remove the conflicting shortcut first.
 
-**3. Start the daemon:**
-```bash
-vox-ptt start             # for this session only
-vox-ptt install           # auto-start at login (systemd user service)
-```
+Then restart the daemon to apply: `vox-ptt restart`
 
-### PTT commands
-```bash
-vox-ptt start     # start daemon (current session)
-vox-ptt stop      # stop daemon
-vox-ptt restart   # restart daemon
-vox-ptt status    # show running status
-vox-ptt install   # install systemd user service (auto-start at login)
-vox-ptt uninstall # remove systemd user service
-```
+> ⚠️ The PTT key must **not** also be registered as a GNOME or KDE hotkey — it would fire twice. Remove any conflicting shortcut before changing the PTT key.
 
-### PTT key names
-
-Use evdev `KEY_*` constants. List all options:
+**PTT key names** — use evdev `KEY_*` constants:
 ```bash
 python3 -c "from evdev import ecodes; print([k for k in dir(ecodes) if k.startswith('KEY_')])"
 ```
-
 Common choices: `KEY_F9`, `KEY_F10`, `KEY_RIGHTCTRL`, `KEY_RIGHTALT`
 
 ---
-
 
 ## Changing toggle hotkeys
 

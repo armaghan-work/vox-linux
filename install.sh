@@ -87,7 +87,8 @@ if [[ "$DISTRO" == "debian" ]]; then
     # ydotool: direct uinput typing (Wayland, no daemon required — user added to input group below)
     # wl-clipboard: Wayland clipboard (wl-copy / wl-paste)
     # xdotool + xclip: X11 typing and clipboard (also works under XWayland)
-    PKGS+=(ydotool wl-clipboard xdotool xclip)
+    # python3-evdev: push-to-talk key detection (reads /dev/input — same input group)
+    PKGS+=(ydotool wl-clipboard xdotool xclip python3-evdev)
 
     sudo apt-get install -y "${PKGS[@]}"
     ok "Packages installed"
@@ -98,7 +99,8 @@ elif [[ "$DISTRO" == "arch" ]]; then
     command -v pw-record >/dev/null 2>&1 || PKGS+=(pipewire pipewire-pulse)
     # ydotool: direct uinput typing; wl-clipboard: Wayland clipboard
     # xdotool + xclip: X11 / XWayland typing and clipboard
-    PKGS+=(ydotool wl-clipboard xdotool xclip)
+    # python-evdev: push-to-talk key detection
+    PKGS+=(ydotool wl-clipboard xdotool xclip python-evdev)
     sudo pacman -S --noconfirm --needed "${PKGS[@]}"
     ok "Packages installed"
 fi
@@ -196,17 +198,13 @@ chmod +x "$INSTALL_DIR/vox.sh" \
 step "Setting up keyboard shortcuts…"
 bash "$INSTALL_DIR/setup/hotkeys.sh" "$INSTALL_DIR"
 
-# ── 8. Optional: python3-evdev for push-to-talk ───────────────────────────────
-step "Checking push-to-talk dependencies…"
+# ── 8. Set up push-to-talk service ───────────────────────────────────────────
+step "Setting up push-to-talk daemon…"
 if python3 -c "import evdev" 2>/dev/null; then
-    ok "python3-evdev already installed — PTT ready"
+    bash "$INSTALL_DIR/vox-ptt.sh" install
 else
-    warn "python3-evdev not installed — push-to-talk will not work until it is."
-    if [[ "$DISTRO" == "debian" ]]; then
-        echo "  Install with: sudo apt install python3-evdev"
-    elif [[ "$DISTRO" == "arch" ]]; then
-        echo "  Install with: sudo pacman -S python-evdev"
-    fi
+    warn "python3-evdev not available — push-to-talk setup skipped."
+    warn "Install it manually and run: vox-ptt install"
 fi
 
 # ── 8. Summary ────────────────────────────────────────────────────────────────
@@ -215,22 +213,14 @@ banner "════════════════════════
 banner "   vox-linux installed successfully!           "
 banner "═══════════════════════════════════════════════"
 echo ""
-echo "  Hotkeys (toggle mode):"
-echo "    Ctrl+Alt+V  →  🎤 Voice type anywhere"
-echo "    Ctrl+Alt+S  →  🤖 Voice AI suggest (copilot -i)"
-echo ""
-echo "  Push-to-talk mode (hold key = record, release = transcribe):"
-echo "    vox-ptt start    →  start PTT daemon (this session)"
-echo "    vox-ptt install  →  auto-start at login (systemd user service)"
-echo "    Default PTT key  :  F9  (change VOX_PTT_KEY in config.cfg)"
-echo "    ⚠  F9 must NOT be a registered GNOME/KDE hotkey before enabling PTT"
-echo ""
-echo "  Test from terminal:"
-echo "    vox type      (speak, press hotkey again to stop)"
-echo "    vox suggest   (speak, runs gh copilot suggest)"
+echo "  Hotkeys:"
+echo "    Ctrl+Alt+V  →  🎤 Voice type anywhere   (press to start, press again to stop)"
+echo "    Ctrl+Alt+S  →  🤖 AI suggest             (press to start, press again to stop)"
+echo "    F9          →  🎤 Push-to-talk           (hold to record, release to type)"
 echo ""
 echo "  Config  : $CONFIG_DIR/config.cfg"
 echo "  Models  : $DATA_DIR/models/"
+echo "  PTT key : F9 by default — change VOX_PTT_KEY in config.cfg"
 echo ""
 
 if [[ "${_NEED_RELOGIN:-false}" == "true" ]]; then
