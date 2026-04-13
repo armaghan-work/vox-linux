@@ -1,0 +1,48 @@
+# vox-linux — user configuration
+# Uncomment and edit only the settings you want to override.
+# All other settings come from the built-in defaults (config/defaults.cfg).
+# This file is sourced as bash.
+
+# ─── Whisper model ────────────────────────────────────────────────────────────
+# Options: tiny.en  base.en  small.en  medium.en  large-v3
+# base.en  ≈ 148 MB, fast on CPU, good English accuracy
+# small.en ≈ 488 MB, better accuracy, slower
+# VOX_WHISPER_MODEL="base.en"
+
+# ─── Language ─────────────────────────────────────────────────────────────────
+# BCP-47 code (en, de, fr, nl, es, ar, …) or "auto" for detection
+# VOX_LANGUAGE="en"
+
+# ─── Display server ───────────────────────────────────────────────────────────
+# auto  = detected from $XDG_SESSION_TYPE / $WAYLAND_DISPLAY
+# wayland | x11
+# VOX_DISPLAY_SERVER="auto"
+
+# ─── Audio backend ────────────────────────────────────────────────────────────
+# auto = first available: pipewire → pulseaudio → alsa
+# pipewire | pulseaudio | alsa
+# VOX_AUDIO_BACKEND="auto"
+
+# ─── Typing / text injection tool ─────────────────────────────────────────────
+# auto = wayland→ydotool / x11→xdotool
+# ydotool | xdotool | clipboard_only
+# VOX_TYPING_TOOL="auto"
+
+# ─── Clipboard tool ───────────────────────────────────────────────────────────
+# auto = wayland→wl-copy / x11→xclip (fallback xsel)
+# wl-copy | xclip | xsel | none
+# VOX_CLIPBOARD_TOOL="auto"
+
+# ─── ydotool socket path ──────────────────────────────────────────────────────
+# YDOTOOL_SOCKET="/tmp/.ydotool_socket"
+
+# ─── Suggest mode command (Ctrl+Alt+S) ────────────────────────────────────────
+# Your speech is appended as a quoted argument: VOX_SUGGEST_CMD "your words"
+# Requires: gh extension install github/gh-copilot
+# VOX_SUGGEST_CMD="copilot -i"
+#
+# Other options:
+# VOX_SUGGEST_CMD="gemini"     # Google Gemini CLI
+# VOX_SUGGEST_CMD="claude"     # Anthropic Claude CLI
+# VOX_SUGGEST_CMD="llm"        # Simon Willison's multi-model CLI
+# VOX_SUGGEST_CMD="aichat"     # aichat (supports Groq, Claude, Gemini…)

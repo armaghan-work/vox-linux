@@ -142,7 +142,7 @@ bash "$INSTALL_DIR/setup/whisper.sh" "$MODEL"
 step "Creating user config…"
 mkdir -p "$CONFIG_DIR"
 if [[ ! -f "$CONFIG_DIR/config.cfg" ]]; then
-    cp "$INSTALL_DIR/config/defaults.cfg" "$CONFIG_DIR/config.cfg"
+    cp "$INSTALL_DIR/config/config.cfg.template" "$CONFIG_DIR/config.cfg"
     ok "Created: $CONFIG_DIR/config.cfg"
 else
     ok "Config already exists (preserved): $CONFIG_DIR/config.cfg"
