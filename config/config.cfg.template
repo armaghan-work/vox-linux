@@ -13,6 +13,38 @@
 # BCP-47 code (en, de, fr, nl, es, ar, …) or "auto" for detection
 # VOX_LANGUAGE="en"
 
+# ─── Toggle hotkeys ───────────────────────────────────────────────────────────
+# Press once to start recording, press again to stop.
+# Format: GNOME/GTK accelerator notation
+#   <Primary> = Ctrl,  <Alt> = Alt,  <Super> = Win/Meta
+# After changing: run ./setup/hotkeys.sh  (from the vox-linux directory)
+# VOX_HOTKEY_TYPE="<Primary><Alt>v"      # voice-to-text at cursor
+# VOX_HOTKEY_SUGGEST="<Primary><Alt>s"   # AI suggest in terminal
+
+# ─── Push-to-talk (PTT) keys ──────────────────────────────────────────────────
+# Hold a key to record; release to transcribe.
+# Use evdev KEY_* names. Examples: KEY_F9  KEY_F8  KEY_RIGHTCTRL
+# Modifier combo: KEY_RIGHTCTRL+KEY_F9   (hold Right Ctrl + F9)
+# List all names: python3 -c "from evdev import ecodes; print([k for k in dir(ecodes) if k.startswith('KEY_')])"
+#
+# IMPORTANT: PTT keys must NOT also be registered as toggle hotkeys above.
+# After changing: run vox-ptt restart
+#
+# VOX_PTT_TYPE_KEY="KEY_F9"       # hold → types text at cursor
+# VOX_PTT_SUGGEST_KEY=""          # hold → runs AI suggest;  empty = disabled
+# VOX_PTT_SUGGEST_KEY="KEY_F8"    # example: F8 for AI suggest, F9 for typing
+
+# ─── Suggest command ──────────────────────────────────────────────────────────
+# Used by Ctrl+Alt+S toggle and PTT suggest key.
+# Your speech is appended as a quoted argument: VOX_SUGGEST_CMD "your words"
+# VOX_SUGGEST_CMD="copilot -i"
+#
+# Other options:
+# VOX_SUGGEST_CMD="gemini"     # Google Gemini CLI
+# VOX_SUGGEST_CMD="claude"     # Anthropic Claude CLI
+# VOX_SUGGEST_CMD="llm"        # Simon Willison's multi-model CLI
+# VOX_SUGGEST_CMD="aichat"     # aichat (supports Groq, Claude, Gemini…)
+
 # ─── Display server ───────────────────────────────────────────────────────────
 # auto  = detected from $XDG_SESSION_TYPE / $WAYLAND_DISPLAY
 # wayland | x11
@@ -36,30 +68,3 @@
 # ─── ydotool socket path ──────────────────────────────────────────────────────
 # YDOTOOL_SOCKET="/tmp/.ydotool_socket"
 
-# ─── Suggest mode command (Ctrl+Alt+S) ────────────────────────────────────────
-# Your speech is appended as a quoted argument: VOX_SUGGEST_CMD "your words"
-# Requires: gh extension install github/gh-copilot
-# VOX_SUGGEST_CMD="copilot -i"
-#
-# Other options:
-# VOX_SUGGEST_CMD="gemini"     # Google Gemini CLI
-# VOX_SUGGEST_CMD="claude"     # Anthropic Claude CLI
-# VOX_SUGGEST_CMD="llm"        # Simon Willison's multi-model CLI
-# VOX_SUGGEST_CMD="aichat"     # aichat (supports Groq, Claude, Gemini…)
-
-# ─── Push-to-talk (PTT) daemon ────────────────────────────────────────────────
-# Hold the PTT key to record; release to transcribe.
-# Start daemon with: vox-ptt start   (or: vox-ptt install  to auto-start at login)
-#
-# Key to hold. Use evdev KEY_* names. Examples:
-#   KEY_F9               — single key (default)
-#   KEY_RIGHTCTRL+KEY_F9 — modifier combo (hold Right Ctrl + F9)
-# List all key names:
-#   python3 -c "from evdev import ecodes; print([k for k in dir(ecodes) if k.startswith('KEY_')])"
-#
-# IMPORTANT: The PTT key must NOT be registered as a GNOME or KDE hotkey.
-#            Remove any conflicting shortcut before enabling PTT.
-# VOX_PTT_KEY="KEY_F9"
-
-# Mode when PTT key is released: type (paste text) | suggest (run AI CLI)
-# VOX_PTT_MODE="type"

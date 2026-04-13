@@ -13,8 +13,16 @@ ok()   { echo -e "${GREEN}✓ $*${NC}"; }
 warn() { echo -e "${YELLOW}⚠ $*${NC}"; }
 
 INSTALL_DIR="${1:?Usage: hotkeys.sh INSTALL_DIR}"
-HOTKEY_TYPE="${2:-<Primary><Alt>v}"
-HOTKEY_SUGGEST="${3:-<Primary><Alt>s}"
+
+# Read hotkey defaults from config (user config overrides defaults)
+_DEFAULTS="$INSTALL_DIR/config/defaults.cfg"
+_USER_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/vox-linux/config.cfg"
+[[ -f "$_DEFAULTS" ]] && source "$_DEFAULTS"
+[[ -f "$_USER_CFG" ]]  && source "$_USER_CFG"
+
+# Positional args override config (backward compat)
+HOTKEY_TYPE="${2:-${VOX_HOTKEY_TYPE:-<Primary><Alt>v}}"
+HOTKEY_SUGGEST="${3:-${VOX_HOTKEY_SUGGEST:-<Primary><Alt>s}}"
 VOX_CMD="$INSTALL_DIR/vox.sh"
 
 # ── GNOME ─────────────────────────────────────────────────────────────────────

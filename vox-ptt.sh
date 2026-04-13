@@ -84,8 +84,8 @@ _ptt_start() {
     local python; python=$(_find_python)
 
     export VOX_SH="${VOX_SH:-$SCRIPT_DIR/vox.sh}"
-    export VOX_PTT_KEY="${VOX_PTT_KEY:-KEY_F9}"
-    export VOX_PTT_MODE="${VOX_PTT_MODE:-type}"
+    export VOX_PTT_TYPE_KEY="${VOX_PTT_TYPE_KEY:-${VOX_PTT_KEY:-KEY_F9}}"
+    export VOX_PTT_SUGGEST_KEY="${VOX_PTT_SUGGEST_KEY:-}"
     export VOX_LOG="${VOX_LOG:-$VOX_STATE_DIR/debug.log}"
 
     "$python" "$PTT_DAEMON" &
@@ -93,10 +93,12 @@ _ptt_start() {
     disown "$pid"
     echo "$pid" > "$PTT_PIDFILE"
     ok "PTT daemon started (PID $pid)"
-    echo "   Hold ${VOX_PTT_KEY} to record — release to transcribe (mode: ${VOX_PTT_MODE})"
+    local type_key="${VOX_PTT_TYPE_KEY:-${VOX_PTT_KEY:-KEY_F9}}"
+    local suggest_key="${VOX_PTT_SUGGEST_KEY:-}"
+    echo "   Type key   : $type_key  (hold → text at cursor)"
+    [[ -n "$suggest_key" ]] && echo "   Suggest key: $suggest_key  (hold → AI suggest)"
     echo ""
-    warn "Reminder: '${VOX_PTT_KEY}' must NOT be registered as a GNOME/KDE hotkey."
-    warn "If it is, both the GNOME shortcut and the PTT daemon will fire on press."
+    warn "PTT keys must NOT also be registered as toggle hotkeys (Ctrl+Alt+V/S)."
 }
 
 _ptt_stop() {
@@ -125,8 +127,8 @@ _ptt_status() {
     if _daemon_running; then
         local pid; pid=$(cat "$PTT_PIDFILE")
         ok "PTT daemon running (PID $pid)"
-        echo "   Key : ${VOX_PTT_KEY:-KEY_F9}"
-        echo "   Mode: ${VOX_PTT_MODE:-type}"
+        echo "   Type key   : ${VOX_PTT_TYPE_KEY:-${VOX_PTT_KEY:-KEY_F9}}"
+        [[ -n "${VOX_PTT_SUGGEST_KEY:-}" ]] && echo "   Suggest key: ${VOX_PTT_SUGGEST_KEY}"
     else
         warn "PTT daemon not running"
         echo "   Start manually : vox-ptt start"
@@ -149,8 +151,8 @@ _ptt_install_service() {
     fi
 
     local vox_sh="${VOX_SH:-$SCRIPT_DIR/vox.sh}"
-    local ptt_key="${VOX_PTT_KEY:-KEY_F9}"
-    local ptt_mode="${VOX_PTT_MODE:-type}"
+    local type_key="${VOX_PTT_TYPE_KEY:-${VOX_PTT_KEY:-KEY_F9}}"
+    local suggest_key="${VOX_PTT_SUGGEST_KEY:-}"
     local ptt_log="$VOX_STATE_DIR/debug.log"
     local python; python=$(_find_python)
 
@@ -158,18 +160,15 @@ _ptt_install_service() {
 [Unit]
 Description=vox-linux push-to-talk daemon
 Documentation=https://github.com/armaghan-work/vox-linux
-# Wait until the graphical session is ready so /dev/input devices are available.
 After=graphical-session.target
 
 [Service]
 Type=simple
 ExecStart=$python $PTT_DAEMON
 Environment=VOX_SH=$vox_sh
-Environment=VOX_PTT_KEY=$ptt_key
-Environment=VOX_PTT_MODE=$ptt_mode
+Environment=VOX_PTT_TYPE_KEY=$type_key
+Environment=VOX_PTT_SUGGEST_KEY=$suggest_key
 Environment=VOX_LOG=$ptt_log
-# Restart if the daemon crashes or if a USB keyboard is re-plugged and the
-# device node disappears (the daemon exits; systemd restarts it automatically).
 Restart=on-failure
 RestartSec=3
 
@@ -183,11 +182,11 @@ EOF
     ok "vox-ptt.service installed and started"
     ok "PTT daemon will auto-start at next login."
     echo ""
-    echo "   Key : $ptt_key"
-    echo "   Mode: $ptt_mode"
+    echo "   Type key   : $type_key  (hold → text at cursor)"
+    [[ -n "$suggest_key" ]] && echo "   Suggest key: $suggest_key  (hold → AI suggest)"
     echo ""
-    warn "Reminder: '$ptt_key' must NOT be registered as a GNOME/KDE hotkey."
-    warn "Change VOX_PTT_KEY in ~/.config/vox-linux/config.cfg, then run: vox-ptt install"
+    warn "PTT keys must NOT also be registered as toggle hotkeys (Ctrl+Alt+V/S)."
+    warn "To change keys, edit ~/.config/vox-linux/config.cfg then run: vox-ptt install"
 }
 
 _ptt_uninstall_service() {
