@@ -166,7 +166,7 @@ type_text() {
     local inject_text="$text"
     if [[ "$mode" == "suggest" ]]; then
         local escaped="${text//\"/\\\"}"   # escape any double quotes in speech
-        local cmd="${VOX_SUGGEST_CMD:-gh copilot suggest}"
+        local cmd="${VOX_SUGGEST_CMD:-gh copilot -i}"
         inject_text="${cmd} \"${escaped}\""
     fi
 
