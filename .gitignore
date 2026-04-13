@@ -17,3 +17,6 @@ Thumbs.db
 
 # Local build artifacts (users build these locally via install.sh)
 # Don't commit whisper.cpp or models — they're downloaded at install time
+
+# Developer documentation (local reference only, not for distribution)
+DEVELOPMENT.md

@@ -29,27 +29,42 @@ audio_start() {
 # Stop the background recorder gracefully, then wait for file flush.
 audio_stop() {
     local pid_file="$1"
+    local _log="${VOX_LOG:-/tmp/vox-linux/debug.log}"
+    _alog() { printf '[%s] audio_stop: %s\n' "$(date '+%H:%M:%S.%3N')" "$*" >> "$_log"; }
 
-    [[ -f "$pid_file" ]] || return 0
+    _alog "start (pid_file=$pid_file)"
+
+    [[ -f "$pid_file" ]] || { _alog "no pidfile — skipping"; return 0; }
 
     local pid
     pid=$(cat "$pid_file")
     rm -f "$pid_file"
+    _alog "recorder pid=$pid"
 
     if kill -0 "$pid" 2>/dev/null; then
+        _alog "sending SIGTERM"
         kill -TERM "$pid" 2>/dev/null || true
 
-        # Wait up to 3 s for graceful shutdown
+        # Wait up to 2 s for graceful shutdown.
+        # Use i=$(( i + 1 )) — never (( i++ )) — to avoid set -e exit when i=0.
         local i=0
-        while kill -0 "$pid" 2>/dev/null && (( i < 30 )); do
+        while kill -0 "$pid" 2>/dev/null && [[ $i -lt 20 ]]; do
             sleep 0.1
-            (( i++ ))
+            i=$(( i + 1 ))
         done
+        _alog "after TERM wait: i=$i still_alive=$(kill -0 "$pid" 2>/dev/null && echo yes || echo no)"
 
-        # Force-kill if still alive
-        kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
+        # Force-kill if still alive (handles pw-record stuck in PipeWire I/O)
+        if kill -0 "$pid" 2>/dev/null; then
+            _alog "sending SIGKILL"
+            kill -KILL "$pid" 2>/dev/null || true
+        fi
+    else
+        _alog "process already gone"
     fi
 
-    sync        # flush OS buffers
-    sleep 0.2   # let the file handle close fully
+    # Do NOT call sync — it flushes ALL filesystem buffers and can block for
+    # minutes on systems with dirty pages or network mounts.
+    sleep 0.3   # let the file handle close fully
+    _alog "done"
 }

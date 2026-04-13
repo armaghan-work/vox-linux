@@ -39,6 +39,7 @@ LOCKFILE="$VOX_STATE_DIR/recording.lock"
 PIDFILE="$VOX_STATE_DIR/recorder.pid"
 AUDIO_FILE="$VOX_STATE_DIR/recording.wav"
 MODE_FILE="$VOX_STATE_DIR/mode"
+FOCUSFILE="$VOX_STATE_DIR/focused_window"
 
 MODE="${1:-type}"
 
@@ -63,7 +64,7 @@ _on_error() {
 # EXIT always fires — removes transient state files unless _cmd_start succeeded.
 _cleanup() {
     if [[ "$_VOX_KEEP_LOCK" != "true" ]]; then
-        rm -f "$LOCKFILE" "$MODE_FILE" "$_VOX_NOTIF_ID_FILE" 2>/dev/null || true
+        rm -f "$LOCKFILE" "$MODE_FILE" "$FOCUSFILE" "$_VOX_NOTIF_ID_FILE" 2>/dev/null || true
     fi
 }
 
@@ -82,6 +83,18 @@ vox_log "detected: display=$VOX_DISPLAY_SERVER audio=$VOX_AUDIO_BACKEND typing=$
 _cmd_start() {
     local mode="$1"
     echo "$mode" > "$MODE_FILE"
+
+    # Capture the currently focused window HERE, at start time, before the
+    # user starts speaking. By stop time, GNOME has stolen focus to handle
+    # the hotkey and xdotool getactivewindow returns empty.
+    rm -f "$FOCUSFILE"
+    if command -v xdotool >/dev/null 2>&1; then
+        local win
+        win=$(xdotool getactivewindow 2>/dev/null || true)
+        [[ -n "$win" ]] && echo "$win" > "$FOCUSFILE"
+        vox_log "cmd_start: saved focused_window='$win'"
+    fi
+
     touch "$LOCKFILE"
     rm -f "$AUDIO_FILE"   # ensure no stale file
     notify_recording
@@ -93,11 +106,12 @@ _cmd_start() {
 
 _cmd_stop() {
     vox_log "cmd_stop: start"
-    # Capture the active window NOW, before transcription takes focus away.
-    # type_text uses this (via VOX_FOCUSED_WINDOW) to re-focus before pasting.
+    # Read the window captured at start time. By the time the stop hotkey fires,
+    # GNOME has stolen focus and xdotool getactivewindow returns nothing.
     VOX_FOCUSED_WINDOW=""
-    if command -v xdotool >/dev/null 2>&1; then
-        VOX_FOCUSED_WINDOW=$(xdotool getactivewindow 2>/dev/null || true)
+    if [[ -f "$FOCUSFILE" ]]; then
+        VOX_FOCUSED_WINDOW=$(cat "$FOCUSFILE" 2>/dev/null || true)
+        rm -f "$FOCUSFILE"
     fi
     vox_log "cmd_stop: focused_window='$VOX_FOCUSED_WINDOW'"
 
@@ -110,6 +124,16 @@ _cmd_stop() {
     local mode
     mode=$(cat "$MODE_FILE" 2>/dev/null || echo "type")
     rm -f "$MODE_FILE"
+
+    # Validate the WAV file before passing to whisper
+    local wav_size=0
+    [[ -f "$AUDIO_FILE" ]] && wav_size=$(wc -c < "$AUDIO_FILE" 2>/dev/null || echo 0)
+    vox_log "cmd_stop: wav size=${wav_size} bytes"
+    if [[ $wav_size -lt 4096 ]]; then
+        vox_log "cmd_stop: WAV too small — recording probably failed"
+        notify_error "Recording failed — no audio captured. Check microphone."
+        exit 1
+    fi
 
     vox_log "cmd_stop: starting transcription (mode=$mode)"
     local text
