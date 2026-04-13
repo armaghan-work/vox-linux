@@ -50,7 +50,10 @@ _restore_focus() {
     [[ -z "${VOX_FOCUSED_WINDOW:-}" ]] && return 0
     sleep 0.1  # let notification system settle before refocusing
     if command -v xdotool >/dev/null 2>&1; then
-        xdotool windowfocus --sync "$VOX_FOCUSED_WINDOW" 2>/dev/null || true
+        # Do NOT use --sync: on GNOME Wayland the X11 FocusIn confirmation
+        # never arrives from the compositor, causing an indefinite hang.
+        xdotool windowfocus "$VOX_FOCUSED_WINDOW" 2>/dev/null || true
+        sleep 0.1  # allow the compositor to settle focus before we paste
     elif command -v wmctrl >/dev/null 2>&1; then
         wmctrl -ia "$VOX_FOCUSED_WINDOW" 2>/dev/null || true
     fi
