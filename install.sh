@@ -85,7 +85,7 @@ if [[ "$DISTRO" == "debian" ]]; then
     command -v cmake     >/dev/null 2>&1 || PKGS+=(cmake)
 
     # Install both wayland AND x11 tools so it works regardless of session
-    PKGS+=(ydotool wl-clipboard xdotool xclip)
+    PKGS+=(wtype ydotool wl-clipboard xdotool xclip)
 
     sudo apt-get install -y "${PKGS[@]}"
     ok "Packages installed"
