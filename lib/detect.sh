@@ -36,8 +36,10 @@ detect_typing_tool() {
     fi
     if [[ "$VOX_DISPLAY_SERVER" == "wayland" ]]; then
         local sock="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
-        if command -v ydotool >/dev/null 2>&1 && { [[ -S "$sock" ]] || [[ -w "/dev/uinput" ]]; }; then
-            # ydotool works via its daemon socket OR via direct /dev/uinput access
+        if command -v ydotool >/dev/null 2>&1 && [[ -S "$sock" ]]; then
+            # Only use ydotool when the ydotoold daemon socket is present.
+            # Without the daemon, direct /dev/uinput mode has known latency
+            # and key-injection bugs (modifier keys misfiring as raw digits).
             VOX_TYPING_TOOL="ydotool"
         elif command -v wtype >/dev/null 2>&1; then
             VOX_TYPING_TOOL="wtype"
