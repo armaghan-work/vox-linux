@@ -42,6 +42,27 @@ MODE_FILE="$VOX_STATE_DIR/mode"
 
 MODE="${1:-type}"
 
+# ── Cleanup trap ──────────────────────────────────────────────────────────────
+# _VOX_KEEP_LOCK is set to true only when _cmd_start completes successfully,
+# so the lockfile survives between the start and stop invocations.
+_VOX_KEEP_LOCK=false
+
+# ERR fires on any unhandled command failure (set -e).
+# Shows an error notification so a stuck "Transcribing…" banner never hangs.
+_on_error() {
+    notify_error "vox-linux crashed unexpectedly. Hotkey is reset." || true
+}
+
+# EXIT always fires — removes transient state files unless _cmd_start succeeded.
+_cleanup() {
+    if [[ "$_VOX_KEEP_LOCK" != "true" ]]; then
+        rm -f "$LOCKFILE" "$MODE_FILE" "$_VOX_NOTIF_ID_FILE" 2>/dev/null || true
+    fi
+}
+
+trap _on_error ERR
+trap _cleanup EXIT
+
 # ── Detect system capabilities ────────────────────────────────────────────────
 detect_display_server
 detect_audio_backend
@@ -57,7 +78,9 @@ _cmd_start() {
     rm -f "$AUDIO_FILE"   # ensure no stale file
     notify_recording
     audio_start "$AUDIO_FILE" "$PIDFILE"
-    # Script exits here; recorder keeps running via disown
+    # Mark the lockfile as intentionally persistent so _cleanup leaves it.
+    # Script exits here; recorder keeps running via disown.
+    _VOX_KEEP_LOCK=true
 }
 
 _cmd_stop() {
