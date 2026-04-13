@@ -30,16 +30,28 @@ info() { echo -e "${BLUE}▶ $*${NC}"; }
 warn() { echo -e "${YELLOW}⚠ $*${NC}"; }
 err()  { echo -e "${RED}✗ $*${NC}" >&2; }
 
+# ── Find python3 with evdev ───────────────────────────────────────────────────
+# Conda (and other virtual envs) can shadow the system python3.
+# Search for the first python3 that actually has evdev installed.
+_find_python() {
+    local candidates=(/usr/bin/python3 /usr/local/bin/python3 python3)
+    local py
+    for py in "${candidates[@]}"; do
+        if command -v "$py" >/dev/null 2>&1 && "$py" -c "import evdev" 2>/dev/null; then
+            echo "$py"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # ── Dependency check ──────────────────────────────────────────────────────────
 _check_deps() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        err "python3 not found. Install it first."
-        exit 1
-    fi
-    if ! python3 -c "import evdev" 2>/dev/null; then
-        err "python3-evdev not installed."
+    if ! _find_python >/dev/null; then
+        err "python3 with evdev not found."
         err "  Debian/Ubuntu: sudo apt install python3-evdev"
         err "  Arch:          sudo pacman -S python-evdev"
+        err "  (If using conda, evdev must be in the system Python, not conda)"
         exit 1
     fi
     if ! groups "$USER" | grep -qw input; then
@@ -69,12 +81,14 @@ _ptt_start() {
     fi
     [[ -f "$PTT_PIDFILE" ]] && rm -f "$PTT_PIDFILE"
 
+    local python; python=$(_find_python)
+
     export VOX_SH="${VOX_SH:-$SCRIPT_DIR/vox.sh}"
     export VOX_PTT_KEY="${VOX_PTT_KEY:-KEY_F9}"
     export VOX_PTT_MODE="${VOX_PTT_MODE:-type}"
     export VOX_LOG="${VOX_LOG:-$VOX_STATE_DIR/debug.log}"
 
-    python3 "$PTT_DAEMON" &
+    "$python" "$PTT_DAEMON" &
     local pid=$!
     disown "$pid"
     echo "$pid" > "$PTT_PIDFILE"
@@ -138,6 +152,7 @@ _ptt_install_service() {
     local ptt_key="${VOX_PTT_KEY:-KEY_F9}"
     local ptt_mode="${VOX_PTT_MODE:-type}"
     local ptt_log="$VOX_STATE_DIR/debug.log"
+    local python; python=$(_find_python)
 
     cat > "$_SERVICE_FILE" <<EOF
 [Unit]
@@ -148,7 +163,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=python3 $PTT_DAEMON
+ExecStart=$python $PTT_DAEMON
 Environment=VOX_SH=$vox_sh
 Environment=VOX_PTT_KEY=$ptt_key
 Environment=VOX_PTT_MODE=$ptt_mode
