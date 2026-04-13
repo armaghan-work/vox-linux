@@ -84,15 +84,20 @@ if [[ "$DISTRO" == "debian" ]]; then
     command -v pw-record >/dev/null 2>&1 || PKGS+=(pulseaudio-utils alsa-utils)
     command -v cmake     >/dev/null 2>&1 || PKGS+=(cmake)
 
-    # Install both wayland AND x11 tools so it works regardless of session
-    PKGS+=(wtype ydotool wl-clipboard xdotool xclip)
+    # ydotool: direct uinput typing (Wayland, no daemon required — user added to input group below)
+    # wl-clipboard: Wayland clipboard (wl-copy / wl-paste)
+    # xdotool + xclip: X11 typing and clipboard (also works under XWayland)
+    PKGS+=(ydotool wl-clipboard xdotool xclip)
 
     sudo apt-get install -y "${PKGS[@]}"
     ok "Packages installed"
 
 elif [[ "$DISTRO" == "arch" ]]; then
     PKGS=(git base-devel libnotify cmake)
-    command -v pw-record >/dev/null 2>&1 || PKGS+=(pulseaudio)
+    # Audio: prefer pipewire; fall back to pulseaudio
+    command -v pw-record >/dev/null 2>&1 || PKGS+=(pipewire pipewire-pulse)
+    # ydotool: direct uinput typing; wl-clipboard: Wayland clipboard
+    # xdotool + xclip: X11 / XWayland typing and clipboard
     PKGS+=(ydotool wl-clipboard xdotool xclip)
     sudo pacman -S --noconfirm --needed "${PKGS[@]}"
     ok "Packages installed"
@@ -190,7 +195,7 @@ banner "════════════════════════
 echo ""
 echo "  Hotkeys:"
 echo "    Ctrl+Alt+V  →  🎤 Voice type anywhere"
-echo "    Ctrl+Alt+S  →  🤖 Voice AI suggest (gh copilot suggest)"
+echo "    Ctrl+Alt+S  →  🤖 Voice AI suggest (copilot -i)"
 echo ""
 echo "  Test from terminal:"
 echo "    vox type      (speak, press hotkey again to stop)"
