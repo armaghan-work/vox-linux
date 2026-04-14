@@ -56,7 +56,6 @@ notify_done() {
     local preview="${text:0:80}"
     [[ ${#text} -gt 80 ]] && preview+="…"
     vox_notify "✅ Typed" "$preview" "low" 4000
-    rm -f "$_VOX_NOTIF_ID_FILE"
 }
 
 # notify_clipboard TEXT — text is in clipboard, user must paste manually
@@ -65,11 +64,9 @@ notify_clipboard() {
     local preview="${text:0:120}"
     [[ ${#text} -gt 120 ]] && preview+="…"
     vox_notify "📋 Paste now  (Ctrl+V / Ctrl+Shift+V)" "$preview" "normal" 12000
-    rm -f "$_VOX_NOTIF_ID_FILE"
 }
 
 # notify_error MESSAGE
 notify_error() {
     vox_notify "❌ vox-linux error" "$1" "critical" 5000
-    rm -f "$_VOX_NOTIF_ID_FILE"
 }

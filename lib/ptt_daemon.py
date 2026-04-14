@@ -162,6 +162,43 @@ async def monitor_device(device: InputDevice) -> None:
 
     except (OSError, asyncio.CancelledError):
         log(f"device disconnected or task cancelled: {device.path}")
+    finally:
+        # Remove from the live list so hotplug_watcher can re-add it if it
+        # reconnects (e.g. KVM switch returning to this machine).
+        try:
+            all_devices.remove(device)
+        except ValueError:
+            pass
+
+async def hotplug_watcher() -> None:
+    """Poll for keyboards that appear after startup (KVM switch, USB hot-plug).
+
+    Runs forever; every 3 s it compares the live evdev device list against the
+    set of already-monitored paths and starts a monitor_device task for any
+    new keyboard it finds.
+    """
+    while True:
+        await asyncio.sleep(3)
+        known = {dev.path for dev in all_devices}
+        for path in list_devices():
+            if path in known:
+                continue
+            try:
+                dev = InputDevice(path)
+                caps = dev.capabilities()
+                if ecodes.EV_KEY in caps and ecodes.KEY_A in caps[ecodes.EV_KEY]:
+                    log(f"hotplug: new keyboard {dev.path} ({dev.name})")
+                    all_devices.append(dev)
+                    # If a recording is already in progress, grab the new device
+                    # so its events are consumed while we record.
+                    if recording:
+                        try:
+                            dev.grab()
+                        except OSError:
+                            pass
+                    asyncio.create_task(monitor_device(dev))
+            except (PermissionError, OSError):
+                pass
 
 def get_keyboard_devices() -> list:
     devices = []
@@ -199,17 +236,14 @@ async def main() -> None:
 
     all_devices = get_keyboard_devices()
     if not all_devices:
-        log("ERROR: no accessible keyboard devices found")
-        print(
-            "Error: no keyboard input devices accessible.\n"
-            "  Make sure your user is in the 'input' group:\n"
-            "    sudo usermod -aG input $USER   (then log out and back in)",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        log("WARNING: no keyboards found at startup — hotplug watcher will detect them")
+    else:
+        log(f"found {len(all_devices)} keyboard device(s)")
 
-    log(f"found {len(all_devices)} keyboard device(s)")
-    await asyncio.gather(*(monitor_device(d) for d in all_devices))
+    await asyncio.gather(
+        *(monitor_device(d) for d in all_devices),
+        hotplug_watcher(),
+    )
 
 if __name__ == "__main__":
     try:

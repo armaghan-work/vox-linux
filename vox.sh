@@ -69,7 +69,7 @@ _on_error() {
 # EXIT always fires — removes transient state files unless _cmd_start succeeded.
 _cleanup() {
     if [[ "$_VOX_KEEP_LOCK" != "true" ]]; then
-        rm -f "$LOCKFILE" "$MODE_FILE" "$_VOX_NOTIF_ID_FILE" 2>/dev/null || true
+        rm -f "$LOCKFILE" "$MODE_FILE" 2>/dev/null || true
     fi
 }
 
@@ -114,8 +114,13 @@ _cmd_stop() {
     [[ -f "$AUDIO_FILE" ]] && wav_size=$(wc -c < "$AUDIO_FILE" 2>/dev/null || echo 0)
     vox_log "cmd_stop: wav size=${wav_size} bytes"
     if [[ $wav_size -lt 4096 ]]; then
-        vox_log "cmd_stop: WAV too small — recording probably failed"
-        notify_error "Recording failed — no audio captured. Check microphone."
+        if [[ $wav_size -gt 0 ]]; then
+            vox_log "cmd_stop: WAV too small (${wav_size}B) — recording was too short"
+            notify_error "Recording too short — hold the key a bit longer and speak."
+        else
+            vox_log "cmd_stop: WAV missing or empty — recording probably failed"
+            notify_error "Recording failed — no audio captured. Check microphone."
+        fi
         exit 1
     fi
 
