@@ -18,6 +18,7 @@ Environment variables:
 """
 
 import asyncio
+import ctypes
 import datetime
 import os
 import signal
@@ -171,34 +172,66 @@ async def monitor_device(device: InputDevice) -> None:
             pass
 
 async def hotplug_watcher() -> None:
-    """Poll for keyboards that appear after startup (KVM switch, USB hot-plug).
+    """Detect keyboards that appear after startup (KVM switch, USB hot-plug).
 
-    Runs forever; every 3 s it compares the live evdev device list against the
-    set of already-monitored paths and starts a monitor_device task for any
-    new keyboard it finds.
+    Uses inotify to watch /dev/input/ — the kernel wakes us instantly when a
+    new device node is created; there is zero overhead between events.
+    Falls back to a 5-second poll if inotify_init1 is unavailable.
     """
-    while True:
-        await asyncio.sleep(3)
-        known = {dev.path for dev in all_devices}
-        for path in list_devices():
-            if path in known:
-                continue
+    _IN_CREATE = 0x00000100   # inotify: file created in watched directory
+    _libc      = ctypes.CDLL(None, use_errno=True)
+
+    ifd = _libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+    if ifd < 0:
+        log("inotify unavailable — falling back to 5 s poll")
+        await _hotplug_poll()
+        return
+
+    _libc.inotify_add_watch(ifd, b"/dev/input", _IN_CREATE)
+
+    loop  = asyncio.get_running_loop()
+    ready = asyncio.Event()
+    loop.add_reader(ifd, ready.set)
+    try:
+        while True:
+            await ready.wait()
+            ready.clear()
             try:
-                dev = InputDevice(path)
-                caps = dev.capabilities()
-                if ecodes.EV_KEY in caps and ecodes.KEY_A in caps[ecodes.EV_KEY]:
-                    log(f"hotplug: new keyboard {dev.path} ({dev.name})")
-                    all_devices.append(dev)
-                    # If a recording is already in progress, grab the new device
-                    # so its events are consumed while we record.
-                    if recording:
-                        try:
-                            dev.grab()
-                        except OSError:
-                            pass
-                    asyncio.create_task(monitor_device(dev))
-            except (PermissionError, OSError):
+                os.read(ifd, 4096)   # drain buffered inotify records
+            except OSError:
                 pass
+            await asyncio.sleep(0.5)  # let udev finish initialising the node
+            _check_new_keyboards()
+    finally:
+        loop.remove_reader(ifd)
+        os.close(ifd)
+
+async def _hotplug_poll() -> None:
+    """Fallback hotplug detection: poll every 5 s (used only if inotify fails)."""
+    while True:
+        await asyncio.sleep(5)
+        _check_new_keyboards()
+
+def _check_new_keyboards() -> None:
+    """Add any keyboard devices not yet in all_devices."""
+    known = {dev.path for dev in all_devices}
+    for path in list_devices():
+        if path in known:
+            continue
+        try:
+            dev = InputDevice(path)
+            caps = dev.capabilities()
+            if ecodes.EV_KEY in caps and ecodes.KEY_A in caps[ecodes.EV_KEY]:
+                log(f"hotplug: new keyboard {dev.path} ({dev.name})")
+                all_devices.append(dev)
+                if recording:
+                    try:
+                        dev.grab()
+                    except OSError:
+                        pass
+                asyncio.create_task(monitor_device(dev))
+        except (PermissionError, OSError):
+            pass
 
 def get_keyboard_devices() -> list:
     devices = []
