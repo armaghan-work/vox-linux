@@ -12,7 +12,8 @@
 |------|---------|-------------|
 | **Toggle type** | `Ctrl + Alt + V` | Press to start recording, press again to stop → text at cursor |
 | **Toggle suggest** | `Ctrl + Alt + S` | Press to start recording, press again to stop → AI CLI in terminal |
-| **Push-to-talk** | Hold configured key (default `F9`) | Hold to record, release to transcribe → text at cursor |
+| **PTT type** | Hold `F9` (configurable) | Hold to record, release → text at cursor |
+| **PTT suggest** | Hold `F8` (configurable) | Hold to record, release → AI CLI in terminal |
 
 ### How suggest mode works
 
@@ -26,7 +27,8 @@ terminal runs:  copilot -i "list all docker containers"
 ### How push-to-talk works
 
 ```
-Hold F9  →  🎤 Recording…  →  release F9  →  text appears at cursor
+Hold F9  →  🔴 Recording…  →  release F9  →  text appears at cursor
+Hold F8  →  🔴 Recording…  →  release F8  →  AI CLI runs in terminal
 ```
 
 Hold the PTT key while speaking. Release when done — transcription runs immediately. No second keypress needed.
@@ -86,8 +88,11 @@ That's it. The installer sets everything up automatically:
 2. Say what you want, e.g. **"show me disk usage by folder"**
 3. Press `Ctrl + Alt + S` again → terminal runs your AI CLI with those words
 
-### `F9` — Push-to-talk
-Hold `F9` while speaking. Release when done — text appears immediately. No second keypress needed.
+### `F9` — Push-to-talk type
+Hold `F9` while speaking. Release when done — text appears immediately at your cursor.
+
+### `F8` — Push-to-talk suggest
+Hold `F8` while speaking. Release when done — your AI CLI runs in the terminal with your words.
 
 ---
 
@@ -102,7 +107,7 @@ Common changes:
 | Whisper model | `VOX_WHISPER_MODEL="small.en"` |
 | AI CLI for suggest | `VOX_SUGGEST_CMD="gemini"` |
 | PTT type key | `VOX_PTT_TYPE_KEY="KEY_F10"` |
-| Add PTT suggest key | `VOX_PTT_SUGGEST_KEY="KEY_F8"` |
+| PTT suggest key | `VOX_PTT_SUGGEST_KEY="KEY_F7"` — default is `KEY_F8` |
 | Toggle hotkeys | `VOX_HOTKEY_TYPE="<Primary><Alt>v"` |
 
 **After changing PTT keys** → `vox-ptt restart`
