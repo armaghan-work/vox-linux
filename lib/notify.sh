@@ -1,35 +1,54 @@
 #!/usr/bin/env bash
 # lib/notify.sh — Desktop notification wrappers
 #
-# Tracks the last notification ID and uses --replace-id so successive
-# notifications replace each other instead of piling up.
+# Status notifications (Recording, Transcribing, Typed) are marked transient:
+# they pop up as banners but do NOT accumulate in the notification center.
+# Errors are non-transient so they stay in the tray if the user misses them.
+# Clipboard notifications are non-transient because they require user action.
+#
+# To show a fresh banner on every event, we close the previous notification via
+# D-Bus before sending the new one.  --replace-id only silently updates the tray
+# entry; the x-canonical-private-synchronous hint suppresses banners entirely
+# (it is designed for volume/brightness OSD overlays, not for us).
 
 readonly _VOX_APP_NAME="vox-linux"
-readonly _VOX_STACK_TAG="vox-linux"
 _VOX_NOTIF_ID_FILE="/tmp/vox-linux/notif_id"
 
-# vox_notify TITLE [BODY] [URGENCY=normal] [TIMEOUT_MS=3000]
+# vox_notify TITLE [BODY] [URGENCY=normal] [TIMEOUT_MS=3000] [TRANSIENT=true]
 vox_notify() {
     local title="${1:-vox}"
     local body="${2:-}"
     local urgency="${3:-normal}"
     local timeout="${4:-3000}"
+    local transient="${5:-true}"
+
+    # Close the previous notification so GNOME shows the next one as a fresh
+    # banner.  --replace-id only silently updates the tray entry; closing first
+    # forces GNOME to treat the next send as a new event worthy of a popup.
+    if [[ -f "$_VOX_NOTIF_ID_FILE" ]]; then
+        local prev_id
+        prev_id=$(cat "$_VOX_NOTIF_ID_FILE" 2>/dev/null || true)
+        if [[ -n "$prev_id" ]]; then
+            gdbus call --session \
+                --dest org.freedesktop.Notifications \
+                --object-path /org/freedesktop/Notifications \
+                --method org.freedesktop.Notifications.CloseNotification \
+                "$prev_id" 2>/dev/null || true
+        fi
+        rm -f "$_VOX_NOTIF_ID_FILE"
+    fi
 
     local args=(
         --app-name="$_VOX_APP_NAME"
         --urgency="$urgency"
         --expire-time="$timeout"
-        --hint="string:x-canonical-private-synchronous:$_VOX_STACK_TAG"
     )
 
-    # Replace the previous notification if we have its ID
-    if [[ -f "$_VOX_NOTIF_ID_FILE" ]]; then
-        local prev_id
-        prev_id=$(cat "$_VOX_NOTIF_ID_FILE" 2>/dev/null || true)
-        [[ -n "$prev_id" ]] && args+=(--replace-id="$prev_id")
-    fi
+    # Transient notifications show as a banner but are not kept in the
+    # notification center, so they don't pile up with normal app messages.
+    [[ "$transient" == "true" ]] && args+=(--hint=boolean:transient:true)
 
-    # Use --print-id (libnotify >= 0.7.9) to track the ID for next replacement
+    # Save the new ID so the next call can close this notification first.
     local new_id
     if new_id=$(notify-send --print-id "${args[@]}" "$title" "$body" 2>/dev/null) \
             && [[ "$new_id" =~ ^[0-9]+$ ]]; then
@@ -42,12 +61,11 @@ vox_notify() {
 }
 
 notify_recording() {
-    vox_notify "🔴 Recording — speak now" "Press the hotkey again to stop." "critical" 0
+    vox_notify "🔴 Recording…" "" "critical" 0 "true"
 }
 
 notify_processing() {
-    # Keep visible (timeout=0) until explicitly replaced by notify_done/notify_error
-    vox_notify "⏳ Transcribing…" "Please wait a moment." "low" 0
+    vox_notify "⏳ Transcribing…" "" "normal" 0 "true"
 }
 
 # notify_done TEXT
@@ -55,7 +73,7 @@ notify_done() {
     local text="${1:-}"
     local preview="${text:0:80}"
     [[ ${#text} -gt 80 ]] && preview+="…"
-    vox_notify "✅ Typed" "$preview" "low" 4000
+    vox_notify "✅ Typed" "$preview" "normal" 4000 "true"
 }
 
 # notify_clipboard TEXT — text is in clipboard, user must paste manually
@@ -63,10 +81,12 @@ notify_clipboard() {
     local text="${1:-}"
     local preview="${text:0:120}"
     [[ ${#text} -gt 120 ]] && preview+="…"
-    vox_notify "📋 Paste now  (Ctrl+V / Ctrl+Shift+V)" "$preview" "normal" 12000
+    # Non-transient: user must see this to know they need to paste manually
+    vox_notify "📋 Paste now  (Ctrl+V / Ctrl+Shift+V)" "$preview" "normal" 12000 "false"
 }
 
 # notify_error MESSAGE
 notify_error() {
-    vox_notify "❌ vox-linux error" "$1" "critical" 5000
+    # Non-transient: stays in the tray so the user can check it later
+    vox_notify "❌ vox-linux error" "$1" "critical" 5000 "false"
 }
