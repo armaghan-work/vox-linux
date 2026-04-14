@@ -33,7 +33,7 @@ vox_notify() {
                 --dest org.freedesktop.Notifications \
                 --object-path /org/freedesktop/Notifications \
                 --method org.freedesktop.Notifications.CloseNotification \
-                "$prev_id" 2>/dev/null || true
+                "$prev_id" >/dev/null 2>&1 || true
         fi
         rm -f "$_VOX_NOTIF_ID_FILE"
     fi
