@@ -21,6 +21,7 @@ import asyncio
 import ctypes
 import datetime
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -37,6 +38,37 @@ except ImportError:
         file=sys.stderr,
     )
     sys.exit(1)
+
+# ── Config file loading ────────────────────────────────────────────────────────
+def _source_config() -> None:
+    """Override VOX_PTT_* env vars by reading the vox-linux config files directly.
+
+    The systemd service file bakes in environment variables at install time.
+    Sourcing the config files here means users can edit config.cfg and simply
+    restart the daemon (vox-ptt restart) — no need to re-run 'vox-ptt install'.
+    Defaults are loaded first, then the user config overrides them.
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    xdg_cfg    = os.environ.get("XDG_CONFIG_HOME",
+                                os.path.join(os.path.expanduser("~"), ".config"))
+    files = [
+        os.path.join(script_dir, "..", "config", "defaults.cfg"),
+        os.path.join(xdg_cfg, "vox-linux", "config.cfg"),
+    ]
+    # Matches bash assignments like:  VOX_PTT_SUGGEST_KEY="KEY_F8"
+    #                               or VOX_PTT_SUGGEST_KEY=KEY_F8
+    _re = re.compile(r'^(VOX_PTT_\w+)\s*=\s*"?(.*?)"?\s*(?:#.*)?$')
+    for path in files:
+        try:
+            with open(path) as fh:
+                for line in fh:
+                    m = _re.match(line.strip())
+                    if m:
+                        os.environ[m.group(1)] = m.group(2)
+        except OSError:
+            pass
+
+_source_config()
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 VOX_SH  = os.environ.get("VOX_SH", os.path.expanduser("~/.local/bin/vox"))
@@ -96,6 +128,22 @@ def log(msg: str) -> None:
         pass
 
 # ── Device grab / ungrab ───────────────────────────────────────────────────────
+def _is_real_keyboard(dev: InputDevice) -> bool:
+    """Return True only for physical/KVM keyboards; False for virtual uinput devices.
+
+    ydotool creates a transient uinput device at /dev/input/eventN while
+    injecting text.  That device has EV_KEY + KEY_A just like a real keyboard,
+    but its physical path (dev.phys) is empty.  Real keyboards — USB, PS/2,
+    Bluetooth, KVM adapters — always have a non-empty physical path such as
+    'usb-0000:00:14.0-2/input0' or 'XX:XX:XX:XX:XX:XX'.  Grabbing a ydotool
+    virtual device would swallow the injected keystrokes before they reach the
+    focused window.
+    """
+    caps = dev.capabilities()
+    if not (ecodes.EV_KEY in caps and ecodes.KEY_A in caps[ecodes.EV_KEY]):
+        return False
+    return bool(dev.phys)   # empty phys → virtual/uinput → skip
+
 def _grab_all() -> None:
     for dev in all_devices:
         try:
@@ -220,16 +268,17 @@ def _check_new_keyboards() -> None:
             continue
         try:
             dev = InputDevice(path)
-            caps = dev.capabilities()
-            if ecodes.EV_KEY in caps and ecodes.KEY_A in caps[ecodes.EV_KEY]:
-                log(f"hotplug: new keyboard {dev.path} ({dev.name})")
-                all_devices.append(dev)
-                if recording:
-                    try:
-                        dev.grab()
-                    except OSError:
-                        pass
-                asyncio.create_task(monitor_device(dev))
+            if not _is_real_keyboard(dev):
+                dev.close()
+                continue
+            log(f"hotplug: new keyboard {dev.path} ({dev.name})")
+            all_devices.append(dev)
+            if recording:
+                try:
+                    dev.grab()
+                except OSError:
+                    pass
+            asyncio.create_task(monitor_device(dev))
         except (PermissionError, OSError):
             pass
 
@@ -238,9 +287,10 @@ def get_keyboard_devices() -> list:
     for path in list_devices():
         try:
             dev = InputDevice(path)
-            caps = dev.capabilities()
-            if ecodes.EV_KEY in caps and ecodes.KEY_A in caps[ecodes.EV_KEY]:
+            if _is_real_keyboard(dev):
                 devices.append(dev)
+            else:
+                dev.close()
         except (PermissionError, OSError):
             pass
     return devices

@@ -89,6 +89,18 @@ _cmd_start() {
     local mode="$1"
     echo "$mode" > "$MODE_FILE"
     touch "$LOCKFILE"
+    # Kill any recorder from a previous run that wasn't cleaned up.
+    # This can happen when rapid press/release cycles cause ptt-start to
+    # overwrite the PIDFILE before ptt-stop gets a chance to kill the old one.
+    if [[ -f "$PIDFILE" ]]; then
+        local stale_pid
+        stale_pid=$(cat "$PIDFILE" 2>/dev/null || true)
+        if [[ -n "$stale_pid" ]] && kill -0 "$stale_pid" 2>/dev/null; then
+            vox_log "cmd_start: killing stale recorder pid=$stale_pid"
+            kill -KILL "$stale_pid" 2>/dev/null || true
+        fi
+        rm -f "$PIDFILE"
+    fi
     rm -f "$AUDIO_FILE"   # ensure no stale file
     notify_recording
     audio_start "$AUDIO_FILE" "$PIDFILE"
