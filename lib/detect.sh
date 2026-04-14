@@ -7,11 +7,25 @@ detect_display_server() {
     if [[ "${VOX_DISPLAY_SERVER:-auto}" != "auto" ]]; then
         return 0
     fi
+    # Normal case: session env vars are present (GNOME shortcut / user terminal).
     if [[ -n "${WAYLAND_DISPLAY:-}" ]] || [[ "${XDG_SESSION_TYPE:-}" == "wayland" ]]; then
         VOX_DISPLAY_SERVER="wayland"
-    else
-        VOX_DISPLAY_SERVER="x11"
+        return 0
     fi
+    # Systemd user services (e.g. the PTT daemon) inherit XDG_RUNTIME_DIR but
+    # NOT WAYLAND_DISPLAY / XDG_SESSION_TYPE because those are imported by the
+    # desktop session AFTER the service has already started.
+    # Probe XDG_RUNTIME_DIR for a live Wayland socket as a reliable fallback.
+    local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    local sock
+    for sock in "$runtime_dir"/wayland-?; do
+        if [[ -S "$sock" ]]; then
+            export WAYLAND_DISPLAY="${sock##*/}"
+            VOX_DISPLAY_SERVER="wayland"
+            return 0
+        fi
+    done
+    VOX_DISPLAY_SERVER="x11"
 }
 
 detect_audio_backend() {

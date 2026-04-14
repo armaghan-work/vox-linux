@@ -42,13 +42,15 @@ transcribe() {
     [[ -f "$txt_file" ]] || return 1
 
     # Clean output:
+    #  - strip leading/trailing whitespace per line first (whisper prefixes
+    #    artefact tags with a space, e.g. " [BLANK_AUDIO]")
     #  - drop [BLANK_AUDIO] / [MUSIC] / similar whisper artefacts
-    #  - strip leading/trailing whitespace
+    #  - drop blank lines
     #  - join lines into a single line
     local result
     result=$(
-        grep -v '^\[' "$txt_file" \
-        | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+        sed 's/^[[:space:]]*//; s/[[:space:]]*$//' "$txt_file" \
+        | grep -v '^\[' \
         | grep -v '^$' \
         | tr '\n' ' ' \
         | sed 's/[[:space:]]*$//'
