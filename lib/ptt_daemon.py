@@ -25,11 +25,12 @@ import re
 import signal
 import subprocess
 import sys
+import time
 from typing import Optional
 
 try:
     import evdev
-    from evdev import ecodes, InputDevice, list_devices
+    from evdev import ecodes, InputDevice, UInput, list_devices
 except ImportError:
     print(
         "Error: python3-evdev not installed.\n"
@@ -114,9 +115,10 @@ if not bindings:
     sys.exit(1)
 
 # ── State ──────────────────────────────────────────────────────────────────────
-all_devices: list = []
-held_keys: set    = set()
-recording         = False   # True while any PTT recording is in progress
+all_devices: list        = []
+held_keys: set           = set()
+recording                = False   # True while any PTT recording is in progress
+ui: Optional[UInput]     = None    # UInput passthrough device (forwards non-PTT keys)
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 def log(msg: str) -> None:
@@ -138,18 +140,23 @@ def _is_real_keyboard(dev: InputDevice) -> bool:
     'usb-0000:00:14.0-2/input0' or 'XX:XX:XX:XX:XX:XX'.  Grabbing a ydotool
     virtual device would swallow the injected keystrokes before they reach the
     focused window.
+
+    Python's evdev.UInput sets phys to 'py-evdev-uinput', which is non-empty
+    but still a virtual device.  We must also exclude it to prevent the daemon
+    from grabbing and monitoring its own passthrough device (infinite loop).
     """
     caps = dev.capabilities()
     if not (ecodes.EV_KEY in caps and ecodes.KEY_A in caps[ecodes.EV_KEY]):
         return False
-    return bool(dev.phys)   # empty phys → virtual/uinput → skip
+    # Exclude virtual/uinput devices: empty phys (ydotool) or py-evdev marker
+    return bool(dev.phys) and not dev.phys.startswith("py-evdev-uinput")
 
 def _grab_all() -> None:
     for dev in all_devices:
         try:
             dev.grab()
-        except OSError:
-            pass
+        except OSError as exc:
+            log(f"grab: WARNING: could not grab {dev.path}: {exc}")
 
 def _ungrab_all() -> None:
     for dev in all_devices:
@@ -158,13 +165,52 @@ def _ungrab_all() -> None:
         except OSError:
             pass
 
+def _setup_uinput() -> None:
+    """Create a UInput passthrough device that mirrors all physical keyboards.
+
+    Because we grab physical keyboards at daemon startup (preventing PTT keys
+    from ever reaching the Wayland compositor), all non-PTT key events must be
+    re-injected via this virtual device so normal typing continues to work.
+
+    Why this fixes the first-press beep / tilde-spam bug
+    ────────────────────────────────────────────────────
+    Kernel-level auto-repeat is disabled on these keyboards (hardware default).
+    The Wayland compositor (GNOME/Mutter) handles repeat via its own internal
+    timer: once it receives a key-press event it starts firing synthetic repeat
+    events to the focused application until it sees the matching key-release.
+
+    With the old reactive-grab approach the compositor always received the
+    initial PTT key-press (before the daemon could grab the device).  It then
+    began generating compositor-level repeats — completely outside evdev —
+    causing beeps or "~~~~" characters to appear for the entire duration of
+    the key-hold.  Grabbing the device afterwards could not stop those repeats
+    because they were generated internally by the compositor, not by evdev.
+
+    With grab-at-startup + passthrough the compositor never sees the PTT key
+    press at all, so it never starts its repeat timer.  Problem eliminated.
+    """
+    global ui
+    if not all_devices:
+        log("uinput: no keyboards available yet — passthrough skipped")
+        return
+    try:
+        ui = UInput.from_device(*all_devices, name="vox-ptt-passthrough")
+        log(f"uinput: passthrough device created ({ui.device.path})")
+        # Give udev / libinput time to discover and open the new virtual device
+        # before we grab the physical keyboards away from the compositor.
+        time.sleep(0.5)
+    except Exception as exc:
+        log(f"uinput: WARNING: could not create passthrough: {exc!r}")
+        log("uinput: falling back to reactive grab — first PTT press may beep")
+        ui = None
+
 # ── PTT callbacks ──────────────────────────────────────────────────────────────
 def on_ptt_press(mode: str) -> None:
     global recording
     if recording:
         return
     recording = True
-    _grab_all()
+    # Keyboards are already grabbed at startup; no reactive grab needed here.
     log(f"PTT press  → ptt-start {mode}")
     subprocess.Popen(
         [VOX_SH, "ptt-start", mode],
@@ -177,7 +223,7 @@ def on_ptt_release() -> None:
     if not recording:
         return
     recording = False
-    _ungrab_all()
+    # Keyboards stay grabbed; passthrough resumes forwarding non-PTT events.
     log("PTT release → ptt-stop")
     subprocess.Popen(
         [VOX_SH, "ptt-stop"],
@@ -190,7 +236,22 @@ async def monitor_device(device: InputDevice) -> None:
     log(f"monitoring {device.path} ({device.name})")
     try:
         async for event in device.async_read_loop():
+            # ── EV_SYN: flush the current event group on the passthrough ──────
+            if event.type == ecodes.EV_SYN:
+                if ui and not recording:
+                    try:
+                        ui.write(event.type, event.code, event.value)
+                    except OSError:
+                        pass
+                continue
+
+            # ── Non-key events (LEDs, misc, relative axes …) ─────────────────
             if event.type != ecodes.EV_KEY:
+                if ui and not recording:
+                    try:
+                        ui.write(event.type, event.code, event.value)
+                    except OSError:
+                        pass
                 continue
 
             code, value = event.code, event.value
@@ -200,14 +261,26 @@ async def monitor_device(device: InputDevice) -> None:
             elif value == 0:
                 held_keys.discard(code)
 
-            # Check each binding for this event
+            # ── Check each PTT binding ────────────────────────────────────────
+            is_ptt = False
             for binding in bindings:
                 if code == binding.trigger_code:
                     modifiers_ok = all(c in held_keys for c in binding.modifier_codes)
                     if value == 1 and modifiers_ok:
                         on_ptt_press(binding.mode)
+                        is_ptt = True
                     elif value == 0:
                         on_ptt_release()
+                        is_ptt = True
+
+            # ── Forward non-PTT key events through the passthrough ────────────
+            # Skip forwarding while recording: the keyboard is intentionally
+            # "silent" during speech capture (the user is speaking, not typing).
+            if not is_ptt and not recording and ui:
+                try:
+                    ui.write(ecodes.EV_KEY, code, value)
+                except OSError:
+                    pass
 
     except (OSError, asyncio.CancelledError):
         log(f"device disconnected or task cancelled: {device.path}")
@@ -273,11 +346,11 @@ def _check_new_keyboards() -> None:
                 continue
             log(f"hotplug: new keyboard {dev.path} ({dev.name})")
             all_devices.append(dev)
-            if recording:
-                try:
-                    dev.grab()
-                except OSError:
-                    pass
+            # Always grab hotplugged keyboards so their events go only to us.
+            try:
+                dev.grab()
+            except OSError as exc:
+                log(f"hotplug: WARNING: could not grab {dev.path}: {exc}")
             asyncio.create_task(monitor_device(dev))
         except (PermissionError, OSError):
             pass
@@ -299,14 +372,19 @@ def get_keyboard_devices() -> list:
 def _handle_sigterm(signum, frame):
     log("stopped (SIGTERM)")
     if recording:
-        log("PTT was active on exit — ungrabbing and firing ptt-stop")
-        _ungrab_all()
+        log("PTT was active on exit — firing ptt-stop")
         subprocess.run(
             [VOX_SH, "ptt-stop"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=5,
         )
+    _ungrab_all()
+    if ui:
+        try:
+            ui.close()
+        except Exception:
+            pass
     sys.exit(0)
 
 signal.signal(signal.SIGTERM, _handle_sigterm)
@@ -315,6 +393,10 @@ signal.signal(signal.SIGTERM, _handle_sigterm)
 async def main() -> None:
     global all_devices
     binding_summary = "  ".join(f"{b.key_spec}→{b.mode}" for b in bindings)
+
+    # Ensure the state/log directory exists (it lives in /tmp, wiped on reboot)
+    os.makedirs(os.path.dirname(VOX_LOG), exist_ok=True)
+
     log(f"starting  bindings=[{binding_summary}]  vox={VOX_SH}")
 
     all_devices = get_keyboard_devices()
@@ -322,6 +404,16 @@ async def main() -> None:
         log("WARNING: no keyboards found at startup — hotplug watcher will detect them")
     else:
         log(f"found {len(all_devices)} keyboard device(s)")
+
+    # Create the UInput passthrough device first so the Wayland compositor
+    # (libinput) has time to discover it before we grab the physical keyboards.
+    # Then grab all physical keyboards so PTT keys can never reach the compositor.
+    if all_devices:
+        _setup_uinput()
+        if ui is not None:
+            _grab_all()
+        else:
+            log("startup: uinput unavailable — using reactive grab (first press may beep)")
 
     await asyncio.gather(
         *(monitor_device(d) for d in all_devices),
@@ -334,10 +426,15 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("stopped (SIGINT)")
         if recording:
-            _ungrab_all()
             subprocess.run(
                 [VOX_SH, "ptt-stop"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=5,
             )
+        _ungrab_all()
+        if ui:
+            try:
+                ui.close()
+            except Exception:
+                pass
