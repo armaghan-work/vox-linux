@@ -20,3 +20,6 @@ Thumbs.db
 
 # Developer documentation (local reference only, not for distribution)
 DEVELOPMENT.md
+
+# Local debug / analysis notes (never commit)
+DEBUG_NOTES.md
