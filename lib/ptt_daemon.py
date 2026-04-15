@@ -346,11 +346,19 @@ def _check_new_keyboards() -> None:
                 continue
             log(f"hotplug: new keyboard {dev.path} ({dev.name})")
             all_devices.append(dev)
-            # Always grab hotplugged keyboards so their events go only to us.
-            try:
-                dev.grab()
-            except OSError as exc:
-                log(f"hotplug: WARNING: could not grab {dev.path}: {exc}")
+            # If the passthrough device was not created at startup (daemon started
+            # before any keyboard was present), try to create it now that we have
+            # at least one keyboard to mirror capabilities from.
+            if ui is None:
+                _setup_uinput()
+            # Grab only when the passthrough is active.  Without a passthrough,
+            # grabbing would make the keyboard completely dead (events captured
+            # but nowhere to forward them), so fall back to reactive grab instead.
+            if ui is not None:
+                try:
+                    dev.grab()
+                except OSError as exc:
+                    log(f"hotplug: WARNING: could not grab {dev.path}: {exc}")
             asyncio.create_task(monitor_device(dev))
         except (PermissionError, OSError):
             pass
