@@ -14,7 +14,7 @@
 #  - No focus-restore, no clipboard save/restore, no timing races.
 
 readonly _KNOWN_TERMINALS=(
-    "gnome-terminal" "terminal" "konsole" "kitty" "alacritty"
+    "gnome-terminal" "ptyxis" "gnome.console" "terminal" "konsole" "kitty" "alacritty"
     "wezterm" "foot" "tilix" "terminator" "xterm" "urxvt"
     "bash" "zsh" "fish" "tmux" "rxvt"
 )
@@ -50,7 +50,7 @@ _is_terminal_focused() {
 _open_terminal() {
     local term=""
     local t
-    for t in gnome-terminal kitty alacritty konsole wezterm foot tilix xterm; do
+    for t in gnome-terminal ptyxis kgx kitty alacritty konsole wezterm foot tilix xterm; do
         command -v "$t" >/dev/null 2>&1 && { term="$t"; break; }
     done
 
@@ -58,6 +58,7 @@ _open_terminal() {
 
     case "$term" in
         gnome-terminal) gnome-terminal &;;
+        ptyxis)         ptyxis --new-window &;;
         konsole)        konsole &;;
         wezterm)        wezterm start &;;
         *)              "$term" &;;
@@ -108,11 +109,19 @@ _type_direct() {
             ;;
         ydotool)
             local sock="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
-            # --delay 400: wait 400ms after creating the uinput device so GNOME
-            # has time to register it before we send the first keystroke.
-            # Without this, the first character is dropped on GNOME Wayland.
-            # --key-delay 12: 12ms between keystrokes (ydotool default).
-            YDOTOOL_SOCKET="$sock" ydotool type --delay 400 --key-delay 12 -- "$text"
+            if [[ "${VOX_YDOTOOL_SUPPORTS_DELAY:-false}" == "true" ]]; then
+                # --delay 400: wait 400ms after creating the uinput device so GNOME
+                # has time to register it before we send the first keystroke.
+                # Without this, the first character is dropped on GNOME Wayland.
+                # Only supported by older direct-uinput ydotool (no daemon).
+                YDOTOOL_SOCKET="$sock" ydotool type --delay 400 --key-delay 12 -- "$text"
+            else
+                # Newer daemon-based ydotool (>=1.0.4) has no --delay option —
+                # its uinput device is created once by ydotoold and stays
+                # registered, so no startup delay is needed.
+                # --key-delay 12: 12ms between keystrokes (ydotool default).
+                YDOTOOL_SOCKET="$sock" ydotool type --key-delay 12 -- "$text"
+            fi
             ;;
     esac
 }
@@ -127,7 +136,11 @@ _send_enter_key() {
             # instead of pressing keys (e.g. key 28:1 28:0 types "22").
             # Use 'ydotool type' with a newline instead.
             local sock="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
-            YDOTOOL_SOCKET="$sock" ydotool type --delay 150 -- $'\n'
+            if [[ "${VOX_YDOTOOL_SUPPORTS_DELAY:-false}" == "true" ]]; then
+                YDOTOOL_SOCKET="$sock" ydotool type --delay 150 -- $'\n'
+            else
+                YDOTOOL_SOCKET="$sock" ydotool type -- $'\n'
+            fi
             ;;
     esac
 }

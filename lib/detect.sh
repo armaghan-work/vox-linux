@@ -49,12 +49,46 @@ detect_typing_tool() {
         return 0
     fi
     if [[ "$VOX_DISPLAY_SERVER" == "wayland" ]]; then
-        local sock="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
+        # Resolve the ydotoold socket path. ydotoold's own default (when no
+        # --socket-path is given) is $XDG_RUNTIME_DIR/.ydotool_socket, e.g.
+        # /run/user/1000/.ydotool_socket — this is what the distro-provided
+        # "ydotool.service" unit uses on newer packages (>=1.0.4, e.g. Ubuntu
+        # 24.10+/26.04). Some manual setups/older docs instead use
+        # /tmp/.ydotool_socket. Respect an explicit YDOTOOL_SOCKET override;
+        # otherwise probe both known locations, preferring the runtime dir.
+        if [[ -z "${YDOTOOL_SOCKET:-}" ]]; then
+            local runtime_sock="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/.ydotool_socket"
+            if [[ -S "$runtime_sock" ]]; then
+                export YDOTOOL_SOCKET="$runtime_sock"
+            elif [[ -S "/tmp/.ydotool_socket" ]]; then
+                export YDOTOOL_SOCKET="/tmp/.ydotool_socket"
+            fi
+        fi
+        local sock="${YDOTOOL_SOCKET:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/.ydotool_socket}"
+
+        # ydotool >=1.0.4 (e.g. Ubuntu 24.10+/26.04) dropped the old
+        # "direct /dev/uinput, no daemon" mode — it now always requires
+        # ydotoold running behind that socket. install.sh enables the
+        # package-provided ydotool.service for this, but if it isn't active
+        # yet (e.g. just installed, or failed to start at login), try a
+        # one-off lazy start here so typing doesn't silently fall back to
+        # clipboard-only.
+        if command -v ydotool >/dev/null 2>&1 && [[ ! -S "$sock" ]] && command -v ydotoold >/dev/null 2>&1; then
+            systemctl --user start ydotool.service ydotoold.service >/dev/null 2>&1 || true
+            local _i=0
+            while [[ ! -S "$sock" ]] && [[ $_i -lt 10 ]]; do
+                sleep 0.1
+                _i=$(( _i + 1 ))
+            done
+            [[ -z "${YDOTOOL_SOCKET:-}" ]] && [[ -S "$sock" ]] && export YDOTOOL_SOCKET="$sock"
+        fi
+
         if command -v ydotool >/dev/null 2>&1 && [[ -S "$sock" ]]; then
             # Daemon socket present — full ydotool support
             VOX_TYPING_TOOL="ydotool"
-        elif command -v ydotool >/dev/null 2>&1 && [[ -w "/dev/uinput" ]]; then
-            # No daemon, but direct /dev/uinput access (user is in input group).
+        elif command -v ydotool >/dev/null 2>&1 && [[ -w "/dev/uinput" ]] && ! command -v ydotoold >/dev/null 2>&1; then
+            # No daemon binary shipped at all (older ydotool, e.g. Ubuntu 22.04/24.04):
+            # direct /dev/uinput access works (user is in input group).
             # Use ydotool type only — character injection works in direct mode.
             # Do NOT use ydotool key (modifier key sequences produce raw digits).
             VOX_TYPING_TOOL="ydotool"
@@ -69,6 +103,21 @@ detect_typing_tool() {
             VOX_TYPING_TOOL="xdotool"
         else
             VOX_TYPING_TOOL="clipboard_only"
+        fi
+    fi
+
+    # ydotool >=1.0.4 (daemon-only, e.g. Ubuntu 24.10+/26.04) removed the
+    # "type --delay <ms>" option that older direct-uinput ydotool versions
+    # required (a startup delay while the temporary uinput device registered
+    # with the compositor). Passing --delay to the new binary makes the whole
+    # command fail ("unrecognized option"), silently falling back to
+    # clipboard. Detect support once here so lib/type.sh can omit the flag on
+    # newer installs while keeping it for older ones.
+    if [[ "$VOX_TYPING_TOOL" == "ydotool" ]]; then
+        if ydotool type --help 2>&1 | grep -qE -- '(^|[^-])--delay([^-]|$)'; then
+            export VOX_YDOTOOL_SUPPORTS_DELAY="true"
+        else
+            export VOX_YDOTOOL_SUPPORTS_DELAY="false"
         fi
     fi
 }

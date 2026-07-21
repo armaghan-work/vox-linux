@@ -130,15 +130,20 @@ else
     ok "udev rule already present: $UDEV_FILE"
 fi
 
-# Remove stale ydotoold.service if left over from a previous install
-# (the ydotoold binary is not included in the Ubuntu package)
-_stale_svc="$HOME/.config/systemd/user/ydotoold.service"
-if [[ -f "$_stale_svc" ]]; then
-    systemctl --user stop ydotoold 2>/dev/null || true
-    systemctl --user disable ydotoold 2>/dev/null || true
-    rm -f "$_stale_svc"
-    systemctl --user daemon-reload
-    ok "Removed stale ydotoold service"
+# Ensure ydotoold is enabled/running (newer ydotool packages require it).
+# Newer ydotool releases (>=1.0.4, e.g. Ubuntu 24.10+/26.04) removed the old
+# "direct /dev/uinput, no daemon required" mode — ydotool type/key now always
+# connects to ydotoold over a unix socket. These packages ship their own
+# "ydotool.service" systemd user unit (usually already enabled by the distro
+# preset); we just make sure it's enabled in case that preset didn't apply.
+# Older Ubuntu packages (22.04/24.04) don't ship this unit at all, so this is
+# a no-op there and typing keeps working via direct /dev/uinput access exactly
+# as before.
+if systemctl --user list-unit-files ydotool.service >/dev/null 2>&1; then
+    systemctl --user enable --now ydotool.service 2>/dev/null || true
+    ok "ydotool.service enabled (auto-starts ydotoold at login)"
+else
+    ok "No ydotool.service unit shipped — using direct /dev/uinput mode (older ydotool)"
 fi
 
 # ── 4. Build whisper.cpp and download model ───────────────────────────────────
